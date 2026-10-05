@@ -70,6 +70,19 @@ function parseStatuses(text: string): OrderStatus[] {
     });
 }
 
+// Text from Turbine's API reaches terminals and agents' contexts: only values of the expected shape
+// pass, so nothing it says can carry escape sequences or instructions.
+const HEX32 = /^0x[0-9a-fA-F]{64}$/;
+const KNOWN = new Set(Object.keys(STATUS_LOOK));
+
+function safeHash(value: string): string {
+  return HEX32.test(value) ? value : "unknown";
+}
+
+function safeStatus(value: string): string {
+  return KNOWN.has(value) ? value : "Unknown";
+}
+
 function humanDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
@@ -104,8 +117,8 @@ function orderReport(
         )
       : null;
   return {
-    hash: order.hash,
-    status: order.status,
+    hash: safeHash(order.hash),
+    status: safeStatus(order.status),
     sell:
       details && sell
         ? {
@@ -134,7 +147,7 @@ function orderReport(
       : null,
     secondsLeft: details ? Math.max(0, Number(details.endTime) - now) : null,
     fills: order.execution.map((fill) => ({
-      txHash: fill.txHash,
+      txHash: safeHash(fill.txHash),
       clearedAt: fill.clearedAt.toISOString(),
       sold: amount(fill.soldAmount, sell),
       bought: amount(fill.boughtAmount, buy),

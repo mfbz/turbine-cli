@@ -76,7 +76,7 @@ Flags, the `--json` shape and acceptance checks are added to each command here w
 
 ### `turbine` (the interactive session)
 
-`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: get a quote, place an order, my orders, cancel an order, approve a token, supported tokens, show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
+`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: get a quote, place an order, my orders, watch an order, cancel an order, approve a token, supported tokens, show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
 
 - Switching to mainnet asks for confirmation first; the header and every summary name the network.
 - An action that fails shows its error and returns to the menu; Ctrl-C or Esc at the menu quits.
@@ -228,9 +228,19 @@ Acceptance:
 
 ### `turbine order watch <hash>`
 
-A live terminal view of one order: its state, fills, and spread against the moving mid price.
+Follows one order until it is filled, expires, is cancelled or turns invalid. It unlocks the wallet once (reading orders is a signed query), polls the order every 3 s and the mid price every 6 s.
 
-Status: planned.
+- **In a terminal**: a full-screen live view: status, a fill bar with what was sold for what, mid against your limit, time left, the latest fills. `q` (or Ctrl-C) stops watching (the order carries on); `c` cancels it, asking first on mainnet. The shell's screen and cursor come back as they were, with a one-line summary.
+- **Piped**: one plain line per change.
+- **`--json`**: the one stream in turbine-cli: one JSON object per line, `{ "type": "state", "order": {…}, "mid" }` on each change and `{ "type": "final", "order": {…}, "mid" }` when the order is done, where `order` has the shape `turbine orders` uses. An error ends the stream with the usual `{ "ok": false, "error" }` document.
+
+Status: done.
+
+Acceptance:
+
+- [x] One event per change, a final event when done; one line per change when piped; `q` stops and `c` cancels in the live view (`src/commands/watch.test.ts`, `src/cli.test.ts`).
+- [x] The view shows status, fills, mid against the limit and time left within the terminal's width (`src/commands/watch.test.ts`).
+- [x] Text from Turbine's API (hashes, statuses) is held to its expected shape before it reaches a terminal or an agent (`src/commands/orders.test.ts`).
 
 ### `turbine orders [--status <list>] [--max <n>]`
 

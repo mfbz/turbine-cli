@@ -212,6 +212,11 @@ const CATALOGUE = {
     "There is no order status {status}.",
     "Use active, filled, expired, cancelled, cancelling or invalid, separated by commas."
   ),
+  ORDER_NOT_FOUND: entry(
+    1,
+    "This wallet has no order with that hash on this network.",
+    "Check the hash and --network; turbine orders lists yours."
+  ),
   HASH_INVALID: entry(
     2,
     "That isn't an order hash.",

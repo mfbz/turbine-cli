@@ -27,7 +27,9 @@ import type {
   submitOrder,
 } from "./turbine/sdk-orders.ts";
 import { orderReport, parseStatuses, renderOrders } from "./commands/orders.ts";
-import { cancelCommand, renderCancel } from "./commands/cancel.ts";
+import { cancelCommand, checkHash, renderCancel } from "./commands/cancel.ts";
+import { watchOrder } from "./commands/watch.ts";
+import { priceOf } from "./turbine/amounts.ts";
 import { approveCommand, renderApprove } from "./commands/approve.ts";
 import { placeCommand, renderPlaced, renderSummary } from "./commands/place.ts";
 import { unlockWallet } from "./wallet/signer.ts";
@@ -71,6 +73,10 @@ type Io = {
   };
   // Test-only: the clock, in seconds.
   now?: () => number;
+  // Test-only: waiting between polls.
+  sleep?: (ms: number) => Promise<void>;
+  // The keyboard, key by key, for live views (main.ts puts the terminal in raw mode).
+  keys?: () => { next(): string | undefined; stop(): void };
 };
 type GlobalOptions = {
   network?: string;
@@ -352,6 +358,89 @@ function buildProgram(
     const reports = states.map((o) => orderReport(o, info.tokens, now()));
     output.result(reports, (theme) => renderOrders(reports, theme));
   };
+  const watch = async (hashText: string) => {
+    const hash = checkHash(hashText);
+    const wallet = signingWallet();
+    const info = await api().info();
+    const { account } = await wallet.unlock();
+    if (account.address.toLowerCase() !== wallet.address.toLowerCase())
+      throw new CliError("WALLET_ADDRESS_MISMATCH");
+    const fetchState = async () => {
+      const [state] = await orders.listOrders(
+        account,
+        info.settler,
+        { hashes: [hash] },
+        { network: network() }
+      );
+      if (!state) throw new CliError("ORDER_NOT_FOUND");
+      return orderReport(state, info.tokens, now());
+    };
+    const first = await fetchState();
+    const sell = info.tokens.find((t) => t.address === first.sell?.address);
+    const buy = info.tokens.find((t) => t.address === first.buy?.address);
+    // The mid for one whole sell token: the price, not this order's amounts.
+    const fetchMid = async () =>
+      sell && buy
+        ? priceOf(
+            (
+              await api().quote(
+                sell.address,
+                buy.address,
+                10n ** BigInt(sell.decimals)
+              )
+            ).mid,
+            sell.decimals,
+            buy.decimals
+          )
+        : null;
+    const terminal = detectTerminal(io.stdoutInfo, io.env, { motion: true });
+    const mode = output.json
+      ? "json"
+      : terminal.tty && io.keys
+        ? "screen"
+        : "lines";
+    const keys = mode === "screen" && io.keys ? io.keys() : undefined;
+    let pending: typeof first | undefined = first;
+    if (mode === "screen") {
+      // The alternate screen keeps the shell's scrollback; the summary goes to the normal one after.
+      io.stdout("\u001b[?1049h");
+      io.cursor?.hide();
+    }
+    let outcome;
+    try {
+      outcome = await watchOrder({
+        fetchState: () => {
+          const ready = pending;
+          pending = undefined;
+          return ready ? Promise.resolve(ready) : fetchState();
+        },
+        fetchMid,
+        sleep:
+          io.sleep ??
+          ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
+        nextKey: () => keys?.next(),
+        mode,
+        write: io.stdout,
+        theme: output.theme,
+        width: () => io.stdoutInfo.columns ?? 80,
+        now,
+      });
+    } finally {
+      keys?.stop();
+      if (mode === "screen") {
+        io.cursor?.show();
+        io.stdout("\u001b[?1049l");
+      }
+    }
+    if (outcome.kind === "cancel") return cancelOrder(hash);
+    if (mode === "screen")
+      output.note(
+        outcome.kind === "done"
+          ? `Order ${hash} is ${outcome.status.toLowerCase()}.`
+          : `Stopped watching ${hash}; the order carries on.`
+      );
+  };
+
   const cancelOrder = async (hash: string) => {
     const wallet = signingWallet();
     const result = await cancelCommand(hash, {
@@ -476,6 +565,11 @@ function buildProgram(
         },
         { value: "orders", label: "My orders", run: () => showOrders({}) },
         {
+          value: "watch",
+          label: "Watch an order",
+          run: async () => watch(await ask(prompter, "Order hash (0x…)", "")),
+        },
+        {
           value: "cancel",
           label: "Cancel an order",
           run: async () =>
@@ -590,6 +684,11 @@ function buildProgram(
   const order = program
     .command("order")
     .description("place, watch and cancel orders");
+  order
+    .command("watch")
+    .description("follow an order live until it is done")
+    .argument("<hash>", "the order's hash, from turbine orders")
+    .action(watch);
   order
     .command("cancel")
     .description(
