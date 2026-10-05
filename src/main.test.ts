@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -6,6 +7,13 @@ import { describe, expect, it } from "vitest";
 const MAIN = fileURLToPath(new URL("./main.ts", import.meta.url));
 
 describe("the turbine entry point", () => {
+  it("sets the TLS key shares before anything connects", () => {
+    const source = readFileSync(MAIN, "utf8");
+    const applied = source.indexOf("preferClassicKeyShares(tls)");
+    expect(applied).toBeGreaterThan(-1);
+    expect(applied).toBeLessThan(source.indexOf("await run("));
+  });
+
   it("runs from source and exits with run()'s code", () => {
     const ok = spawnSync(process.execPath, [MAIN, "--version"], {
       encoding: "utf8",

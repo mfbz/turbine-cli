@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 import { homedir } from "node:os";
+import tls from "node:tls";
 
 import { confirm, isCancel, password, select, text } from "@clack/prompts";
 
 import { run } from "./cli.ts";
+import { preferClassicKeyShares } from "./net/tls.ts";
 import { createCursor } from "./ui/cursor.ts";
 import type { Choice } from "./wallet/signer.ts";
+
+// Before anything connects: every request (Turbine, the SDK, the RPC) uses these defaults.
+preferClassicKeyShares(tls);
 
 // A reader that stops early (`turbine orders --json | head`) is a normal pipeline, not a crash.
 for (const stream of [process.stdout, process.stderr]) {
