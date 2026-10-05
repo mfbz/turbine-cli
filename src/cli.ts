@@ -14,6 +14,11 @@ import { runSession } from "./commands/session.ts";
 import { readEnv } from "./config/env.ts";
 import type { Env } from "./config/env.ts";
 import { resolveNetwork } from "./config/network.ts";
+import type { NetworkConfig } from "./config/network.ts";
+import { parseBps, quoteCommand, renderQuote } from "./commands/quote.ts";
+import { renderTokens, tokensCommand } from "./commands/tokens.ts";
+import type { TurbineApi } from "./turbine/api.ts";
+import { createHttpApi } from "./turbine/http.ts";
 import { CliError } from "./output/errors.ts";
 import type { ErrorCode } from "./output/errors.ts";
 import { createOutput } from "./output/output.ts";
@@ -41,6 +46,8 @@ type Io = {
   scryptN?: number;
   // The terminal cursor, shared with main.ts's Ctrl-C handler.
   cursor?: Cursor;
+  // Test-only: Turbine itself (default: the HTTP API of the chosen network).
+  api?: (network: NetworkConfig) => TurbineApi;
 };
 type GlobalOptions = {
   network?: string;
@@ -151,6 +158,17 @@ function buildProgram(
   const network = () =>
     resolveNetwork({ flag: options().network ?? sessionNetwork, env: env() });
   const dirs = () => walletDirs(io.env, io.home, io.platform);
+  // One client per network per run, so the config is fetched once.
+  const clients = new Map<string, TurbineApi>();
+  const api = () => {
+    const current = network();
+    let client = clients.get(current.name);
+    if (!client) {
+      client = (io.api ?? ((n) => createHttpApi({ network: n })))(current);
+      clients.set(current.name, client);
+    }
+    return client;
+  };
   const walletContext = (): WalletContext & { prompter?: Prompter } => ({
     dirs: dirs(),
     sources: {
@@ -190,6 +208,25 @@ function buildProgram(
     output.result(entries, (theme) => renderList(entries, theme));
   };
 
+  const showTokens = async () => {
+    const tokens = await tokensCommand(api());
+    output.result(tokens, (theme) => renderTokens(tokens, theme));
+  };
+  const showQuote = async (input: {
+    amount: string;
+    sell: string;
+    buy: string;
+    spreadBps?: number;
+  }) => {
+    const report = await quoteCommand(input, api(), network().name);
+    output.result(report, (theme) => renderQuote(report, theme));
+  };
+  const ask = async (prompter: Prompter, message: string, initial = "") => {
+    const answer = await prompter.text(message, initial);
+    if (answer === undefined) throw new CliError("CANCELLED");
+    return answer.trim();
+  };
+
   const askName = async (prompter: Prompter) => {
     const name = await prompter.text("Name for the wallet", "default");
     if (name === undefined) throw new CliError("CANCELLED");
@@ -213,6 +250,32 @@ function buildProgram(
         });
       },
       actions: () => [
+        {
+          value: "quote",
+          label: "Get a quote",
+          hint: "mid price, fee, what a spread means",
+          run: async () => {
+            const amount = await ask(prompter, "How much do you sell?", "1");
+            const sell = await ask(
+              prompter,
+              "Which token do you sell?",
+              "WETH"
+            );
+            const buy = await ask(prompter, "For which token?", "USDC");
+            const spread = await ask(
+              prompter,
+              "Spread in basis points (blank for none)",
+              ""
+            );
+            await showQuote({
+              amount,
+              sell,
+              buy,
+              ...(spread ? { spreadBps: parseBps(spread) } : {}),
+            });
+          },
+        },
+        { value: "tokens", label: "Supported tokens", run: showTokens },
         {
           value: "config",
           label: "Show my setup",
@@ -269,6 +332,34 @@ function buildProgram(
         output.fail(error);
       },
       goodbye: () => output.note(output.theme.dim("Trade slow, pay less.")),
+    });
+
+  program
+    .command("tokens")
+    .description("the tokens Turbine supports on this network")
+    .action(showTokens);
+
+  program
+    .command("quote")
+    .description(
+      "the mid price for a pair, Turbine's fee, and what a spread would mean"
+    )
+    .argument("<amount>", "how much you sell, e.g. 1.5")
+    .argument("<sell>", "the token you sell, e.g. WETH")
+    .argument("<buy>", "the token you buy, e.g. USDC")
+    .option(
+      "--spread <bps>",
+      "a spread in basis points: 50 is up to 0.5% worse than mid, -10 only better"
+    )
+    .action(async (amount, sell, buy, opts) => {
+      await showQuote({
+        amount,
+        sell,
+        buy,
+        ...(opts.spread === undefined
+          ? {}
+          : { spreadBps: parseBps(opts.spread) }),
+      });
     });
 
   program

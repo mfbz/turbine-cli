@@ -150,6 +150,58 @@ const CATALOGUE = {
     "Run it in a terminal yourself; this step is never automated."
   ),
   CANCELLED: entry(130, "Cancelled.", "Nothing was changed."),
+  AMOUNT_INVALID: entry(
+    2,
+    "{amount} isn't an amount: use a positive number such as 10 or 0.5.",
+    "Amounts are in whole tokens, with a dot for decimals."
+  ),
+  AMOUNT_TOO_PRECISE: entry(
+    2,
+    "That token has {decimals} decimals; the amount has more.",
+    "Round the amount to the token's precision."
+  ),
+  SPREAD_INVALID: entry(
+    2,
+    "A spread is a whole number of basis points from -10000 to 9999.",
+    "50 means up to 0.5% worse than mid; -10 means only 0.1% better than mid or more."
+  ),
+  DURATION_INVALID: entry(
+    2,
+    "{duration} isn't a duration.",
+    "Use seconds, minutes, hours or days, such as 90s, 15m, 4h, 2d or 1h30m."
+  ),
+  TOKEN_UNKNOWN: entry(
+    1,
+    "Turbine doesn't trade {token} on this network.",
+    "See turbine tokens for the tokens you can use."
+  ),
+  SAME_TOKEN: entry(
+    2,
+    "The sell and buy tokens are the same.",
+    "Pick two different tokens."
+  ),
+  NETWORK_UNREACHABLE: entry(
+    1,
+    "Couldn't reach Turbine.",
+    "Check your connection and try again.",
+    true
+  ),
+  QUOTE_UNAVAILABLE: entry(
+    1,
+    "Quoting is switched off on this network right now.",
+    "Try again later, or the other network with --network.",
+    true
+  ),
+  API_RESPONSE_INVALID: entry(
+    1,
+    "Turbine answered in a way turbine-cli doesn't understand.",
+    "Turbine's API may have changed. Update turbine-cli, or report it with the output of --debug."
+  ),
+  API_CONTRACTS_UNEXPECTED: entry(
+    1,
+    "Turbine's API names contracts other than the ones Turbine publishes for mainnet.",
+    "turbine-cli won't sign for unknown contracts. Check docs.turbine.exchange and update turbine-cli."
+  ),
   SERVICE_UNAVAILABLE: entry(
     1,
     "Turbine is unavailable right now.",
