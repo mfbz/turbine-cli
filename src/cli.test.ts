@@ -691,6 +691,45 @@ describe("turbine orders and turbine order cancel", () => {
     expect(bad.doc().error.code).toBe("HASH_INVALID");
   });
 
+  it("finds the hash after global flags that take a value (--account demo order cancel 0x…)", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    for (const argv of [
+      [
+        "--account",
+        "default",
+        "order",
+        "cancel",
+        PLACED,
+        "--dry-run",
+        "--json",
+      ],
+      [
+        "--network",
+        "playground",
+        "order",
+        "watch",
+        PLACED,
+        "--dry-run",
+        "--json",
+      ],
+      ["--account=default", "order", "cancel", PLACED, "--dry-run", "--json"],
+    ]) {
+      const result = await capture(argv, { home, env, listed: [FILLED] });
+      expect(result.all).not.toContain("KEY_IN_ARGV");
+    }
+    // A key given as a flag's value is still a key.
+    const key = await capture([
+      "--account",
+      PLACED,
+      "order",
+      "cancel",
+      PLACED,
+      "--json",
+    ]);
+    expect(key.doc().error.code).toBe("KEY_IN_ARGV");
+  });
+
   it("still refuses a key-shaped value anywhere else", async () => {
     const result = await capture([
       "order",
