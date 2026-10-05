@@ -1,0 +1,25 @@
+# Keeps the GitHub Actions (pinned by commit) and the npm dependencies current. Pull requests go to
+# main like every change, grouped so there is one per ecosystem each month.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: ["/", "/.github/actions/setup"]
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      development:
+        dependency-type: development
+      production:
+        dependency-type: production
+    commit-message:
+      prefix: chore
+      prefix-development: chore

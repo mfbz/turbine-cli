@@ -66,4 +66,4 @@ Details and examples: skill `turbine-conventions`.
 - Behind `main`? Merge `main` into your branch (no rebase of pushed work, no force-push). Never push to `main`, never commit `.env` files or keys.
 - Never bump versions (they stay `0.0.0` in the code), create tags or publish; releases are the maintainer's, by hand (CONTRIBUTING "Releasing").
 - Never credit an AI tool as an author: no `Co-Authored-By` trailers for coding agents, no "Generated with …" lines, in commits, PRs, issues or docs.
-- Guards check every commit (Git hooks, on from `npm install`) and every committable file (`npm test`): no keys, seed phrases or tokens, no home-folder paths, no AI attribution, nothing over 1 MB. Fix the cause; never weaken a guard, never `--no-verify`, never change `core.hooksPath`.
+- Guards check every commit (Git hooks, on from `npm install`), every committable file (`npm test`) and every PR's title and description (CI): no keys, seed phrases or tokens, no home-folder paths, no AI attribution, nothing over 1 MB. Fix the cause; never weaken a guard, never `--no-verify`, never change `core.hooksPath`.

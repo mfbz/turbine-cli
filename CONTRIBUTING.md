@@ -38,6 +38,7 @@ Every change passes the same guards, whoever writes it. They run twice:
 
 - **On every commit.** `.githooks/pre-commit` checks what is staged and `.githooks/commit-msg` checks the message, so nothing bad ever becomes a commit. Plain Node 24 runs them; nothing needs installing first.
 - **In `npm test`.** `tools/checks/guards-repo.test.ts` checks every file Git would commit, so a skipped hook is still caught in CI.
+- **On every pull request.** CI's `pull-request` job checks the title (a conventional commit) and the description with the commit-message guards, because together they become the squash commit on `main`.
 
 The guards block:
 
