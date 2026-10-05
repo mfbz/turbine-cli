@@ -5,6 +5,7 @@ import tls from "node:tls";
 import { confirm, isCancel, password, select, text } from "@clack/prompts";
 
 import { run } from "./cli.ts";
+import { CliError, toErrorReport } from "./output/errors.ts";
 import { preferClassicKeyShares } from "./net/tls.ts";
 import { createCursor } from "./ui/cursor.ts";
 import type { Choice } from "./wallet/signer.ts";
@@ -25,6 +26,14 @@ for (const stream of [process.stdout, process.stderr]) {
 const cursor = createCursor((text) => process.stdout.write(text));
 process.once("SIGINT", () => {
   cursor.restore();
+  // --json promises one document, an interrupt included.
+  if (process.argv.slice(2).includes("--json")) {
+    const { code, message, hint, retryable } = toErrorReport(
+      new CliError("CANCELLED")
+    );
+    const error = { code, message, hint, retryable };
+    process.stdout.write(`${JSON.stringify({ ok: false, error })}\n`);
+  }
   process.exit(130);
 });
 

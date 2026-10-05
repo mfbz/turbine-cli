@@ -295,8 +295,7 @@ const CATALOGUE = {
   TRANSACTION_PENDING: entry(
     1,
     "The transaction {hash} was sent but isn't confirmed yet.",
-    "Check it on a block explorer; don't send it again until it's settled.",
-    true
+    "Check it on a block explorer; don't send it again until it's settled."
   ),
   CONFIRMATION_REQUIRED: entry(
     1,

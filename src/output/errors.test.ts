@@ -19,6 +19,18 @@ describe("the error catalogue", () => {
   });
 });
 
+describe("retrying", () => {
+  it("is never suggested for something already signed and sent: a retry would send it twice", () => {
+    for (const code of [
+      "ORDER_OUTCOME_UNKNOWN",
+      "CANCEL_OUTCOME_UNKNOWN",
+      "APPROVAL_PARTIAL",
+      "TRANSACTION_PENDING",
+    ] as const)
+      expect(CATALOGUE[code].retryable, code).toBe(false);
+  });
+});
+
 describe("errors that aren't Turbine's", () => {
   it("are internal, never 'Turbine rejected', even when they carry a code (Node's ENOTDIR, ERR_CRYPTO_*)", () => {
     for (const code of ["ENOTDIR", "EACCES", "ERR_CRYPTO_INVALID_IV"]) {

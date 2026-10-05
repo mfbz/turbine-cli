@@ -14,7 +14,7 @@ turbine-cli places signed orders that can move real tokens. You prepare and expl
 3. **Show the person the summary and ask.** From the dry run, say in plain words: what is sold, the least received at today's mid (`atSpreadNow`), the spread, the limit (or that there is none), how long it lives, the network, and every warning. Run the real command only after the person says yes to that exact order. A yes to one order is not a yes to the next.
 4. **Never handle keys or passwords.** Never ask for a private key, seed phrase or wallet password in chat, never put one in a command, a file or an environment variable, and never read wallet files. turbine-cli refuses a private key on the command line (`KEY_IN_ARGV`). The person unlocks the wallet themselves (see below).
 5. **Stay on the playground.** It is the default and simulates fills. Use `--network mainnet` only when the person asks for mainnet in so many words, and say clearly that it uses real funds.
-6. **Never add `--yes` on your own.** It skips the confirmations that protect real funds. Use it only when the person asked for this exact order on mainnet and has seen its dry run.
+6. **Never add `--yes` on your own.** It skips the confirmations that protect real funds. Without a terminal turbine-cli needs it for anything on mainnet, for `turbine approve`, and for a playground order with a `REAL_FUNDS_EXPOSED`, `CHAIN_UNCHECKED` or `SETTLER_UNKNOWN` warning. Add it only after the person has seen that exact command's dry run and said yes to it.
 
 ## Commands
 
@@ -48,10 +48,10 @@ Success is `{ "ok": true, "data": … }`. Failure is `{ "ok": false, "error": { 
 - `retryable: true` (`NETWORK_UNREACHABLE`, `SERVICE_BUSY`, `SERVICE_UNAVAILABLE`, `QUOTE_UNAVAILABLE`, `REQUEST_FAILED`, `RPC_UNREACHABLE`): wait a little and try the same read again, a few times at most. Never retry a signing command this way.
 - `ORDER_OUTCOME_UNKNOWN` or `CANCEL_OUTCOME_UNKNOWN`: it was signed and sent, but the answer was lost. **Do not place or cancel again.** Run `turbine orders --json` and tell the person what it shows.
 - `APPROVAL_PARTIAL`: the first of two approval transactions went through; tell the person and show the hash.
-- `CONFIRMATION_REQUIRED`: this needs the person's explicit confirmation (mainnet, or a playground wallet holding real tokens). Show the dry run and ask; don't reach for `--yes` unless they agree.
+- `CONFIRMATION_REQUIRED`: this needs the person's explicit confirmation (rule 6). Show the dry run and ask; add `--yes` only if they say yes.
 - `ALLOWANCE_MISSING`: on mainnet the token needs `turbine approve <token>` first: dry-run it and ask, since it costs gas.
 - `BALANCE_TOO_LOW`, `AMOUNT_TOO_SMALL`, `LEVEL_TOO_SMALL`, `TTL_TOO_SHORT`, `TTL_TOO_LONG`, `SPREADS_TOO_CLOSE`: adjust the numbers with the person, then dry-run again.
 - `KEY_IN_ARGV`: something that looks like a private key reached the command line. Remove it; never retry with it.
 - `API_REJECTED`: Turbine refused it; `upstreamCode` is Turbine's own code. Tell the person; don't guess around it.
 
-Warnings in a dry run's `warnings` list are not errors, but each one goes to the person. `REAL_FUNDS_EXPOSED` matters most: the playground signature would also be valid on mainnet for that wallet's real tokens, so suggest a fresh wallet for the playground.
+Warnings in a dry run's `warnings` list are not errors, but each one goes to the person. `REAL_FUNDS_EXPOSED` matters most: the playground signature would also be valid on mainnet for that wallet's real tokens, so suggest a fresh wallet for the playground. `SETTLER_UNKNOWN` means the playground names a contract that isn't Turbine's: say so plainly before anything is signed.

@@ -202,4 +202,8 @@ function createHttpApi(options: {
   };
 }
 
-export { createHttpApi, TurbineApiError };
+// Turbine's settler: a playground order's Permit2 allowance is valid on Ethereum too, so the
+// playground is held to it as well, by a warning rather than a refusal (see order-plan.ts).
+const TURBINE_SETTLER = PINNED.mainnet?.settler;
+
+export { createHttpApi, TURBINE_SETTLER, TurbineApiError };

@@ -33,6 +33,8 @@ type Options = {
   chain?: Partial<{ balance: bigint; allowance: bigint; fail: boolean }>;
   // What listing the wallet's orders returns, call after call (the last one repeats).
   listed?: unknown[];
+  // The settler Turbine's config names (default: Turbine's own).
+  settler?: `0x${string}`;
 };
 
 afterEach(() => {
@@ -126,7 +128,7 @@ async function capture(argv: string[], options: Options = {}) {
       text: () => Promise.resolve(texts.shift()),
     },
     scryptN: 1024,
-    api: () => createFakeApi(),
+    api: () => createFakeApi({ settler: options.settler }),
     chain: () => fakeChain(options.chain),
     orders: {
       openOrderReader: () => ({
@@ -580,6 +582,18 @@ describe("turbine order place", () => {
       home,
       env,
       chain: exposed,
+    });
+    expect(result.doc().error.code).toBe("CONFIRMATION_REQUIRED");
+  });
+
+  it("asks before signing on the playground when the config names a settler that isn't Turbine's", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const result = await capture([...ORDER, "--json"], {
+      home,
+      env,
+      chain: { balance: 0n, allowance: 0n },
+      settler: "0x000000000000000000000000000000000000dEaD",
     });
     expect(result.doc().error.code).toBe("CONFIRMATION_REQUIRED");
   });

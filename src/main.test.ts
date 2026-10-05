@@ -1,5 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { createServer } from "node:net";
+import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -34,5 +36,34 @@ describe("the turbine entry point", () => {
     );
     expect(stderr).not.toContain("EPIPE");
     expect(code).toBe(0);
+  });
+
+  it("still prints one JSON document when interrupted mid-request with --json", async () => {
+    // A Turbine that accepts the connection and never answers.
+    const server = createServer(() => undefined);
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve)
+    );
+    const { port } = server.address() as AddressInfo;
+    const connected = new Promise<void>((resolve) =>
+      server.once("connection", () => resolve())
+    );
+    const child = spawn(process.execPath, [MAIN, "tokens", "--json"], {
+      env: {
+        ...process.env,
+        TURBINE_API_URL: `http://127.0.0.1:${port}/api`,
+      },
+    });
+    let stdout = "";
+    child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
+    await connected;
+    child.kill("SIGINT");
+    const code = await new Promise<number | null>((resolve) =>
+      child.on("close", resolve)
+    );
+    server.close();
+    expect(code).toBe(130);
+    const doc = JSON.parse(stdout) as { ok: boolean; error: { code: string } };
+    expect(doc).toMatchObject({ ok: false, error: { code: "CANCELLED" } });
   });
 });

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFrontmatter, validateSkill } from "./skills.ts";
+import {
+  cliSurface,
+  parseFrontmatter,
+  validateSkill,
+  unknownCommands,
+  unknownFlags,
+} from "./skills.ts";
 
 function skill(frontmatter: string, body = "Do the thing.\n"): string {
   return `---\n${frontmatter}\n---\n\n${body}`;
@@ -78,5 +84,44 @@ describe("validateSkill", () => {
     expect(
       validateSkill("demo", skill("name: demo\ndescription: x", ""))
     ).toContain("the skill body is empty");
+  });
+});
+
+describe("checking a skill against the CLI", () => {
+  const source = `
+    program.option("--json", "x").option("-y, --yes", "x")
+      .option(
+        "--dry-run", "x")
+    program.command("quote").requiredOption("--spread <bps>", "x");
+    const order = program.command("order");
+    order.command("cancel");
+  `;
+
+  it("reads the CLI's flags and commands from its source", () => {
+    const surface = cliSurface(source);
+    expect([...surface.flags].sort()).toEqual([
+      "--dry-run",
+      "--json",
+      "--spread",
+      "--yes",
+    ]);
+    expect([...surface.commands].sort()).toEqual(["cancel", "order", "quote"]);
+  });
+
+  it("flags a truncated or misspelled flag, not only a missing one", () => {
+    const surface = cliSurface(source);
+    expect(
+      unknownFlags("use --dry, --json and --dry-run, never --yess", surface)
+    ).toEqual(["--dry", "--yess"]);
+  });
+
+  it("flags a command or subcommand that doesn't exist, in code spans only", () => {
+    const surface = cliSurface(source);
+    expect(
+      unknownCommands(
+        "Run `turbine quote 1 WETH`, `turbine order cancel 0x…`, `turbine order wach 0x…` and `turbine qoute`; the turbine command line is fine.",
+        surface
+      )
+    ).toEqual(["turbine order wach", "turbine qoute"]);
   });
 });

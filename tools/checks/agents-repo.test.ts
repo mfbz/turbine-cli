@@ -6,7 +6,12 @@ import pkg from "../../package.json" with { type: "json" };
 import { WARNINGS } from "../../src/commands/place.ts";
 import { CATALOGUE } from "../../src/output/errors.ts";
 import { readRepoFile, repoPath } from "./repo.ts";
-import { validateSkill } from "./skills.ts";
+import {
+  cliSurface,
+  unknownCommands,
+  unknownFlags,
+  validateSkill,
+} from "./skills.ts";
 
 const MAX_AGENTS_LINES = 150;
 const scripts = Object.keys(pkg.scripts);
@@ -75,7 +80,7 @@ describe("the turbine skill", () => {
 
   it("names only error codes, warnings and environment variables turbine-cli has", () => {
     const env = readRepoFile("src", "config", "env.ts");
-    const named = [...skill().matchAll(/`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)`/g)]
+    const named = [...skill().matchAll(/`([A-Z][A-Z0-9_]{2,})`/g)]
       .map((match) => match[1] ?? "")
       .filter(
         (code) =>
@@ -87,11 +92,12 @@ describe("the turbine skill", () => {
     expect(named).toEqual([]);
   });
 
-  it("names only flags turbine-cli has", () => {
-    const cli = readRepoFile("src", "cli.ts");
-    const named = [...skill().matchAll(/(?<![\w-])--([a-z][a-z-]*)/g)]
-      .map((match) => match[1] ?? "")
-      .filter((flag) => !cli.includes(`--${flag}`));
-    expect(named).toEqual([]);
+  it("names only flags and commands turbine-cli has, exactly (the README too)", () => {
+    const surface = cliSurface(readRepoFile("src", "cli.ts"));
+    expect(unknownFlags(skill(), surface)).toEqual([]);
+    expect(unknownCommands(skill(), surface)).toEqual([]);
+    const readme = readRepoFile("README.md");
+    expect(unknownFlags(readme, surface)).toEqual([]);
+    expect(unknownCommands(readme, surface)).toEqual([]);
   });
 });

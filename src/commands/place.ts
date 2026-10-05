@@ -72,6 +72,8 @@ const WARNINGS: Record<Warning, string> = {
     "This wallet doesn't hold this amount on Ethereum. The playground may still simulate it; mainnet won't.",
   CHAIN_UNCHECKED:
     "Couldn't read the wallet's balance and allowance from Ethereum; the playground will tell.",
+  SETTLER_UNKNOWN:
+    "The playground names a settler that isn't Turbine's published one. The Permit2 allowance you sign is for that contract, and valid on Ethereum until the order ends.",
   REAL_FUNDS_EXPOSED:
     "This wallet holds real tokens of this kind on Ethereum, and the playground's Permit2 signature is valid there too until the order ends. Use a fresh wallet for the playground (turbine wallet new).",
 };
@@ -178,7 +180,8 @@ async function confirmRealFunds(
   const realFunds =
     deps.network.name === "mainnet" ||
     plan.warnings.includes("REAL_FUNDS_EXPOSED") ||
-    plan.warnings.includes("CHAIN_UNCHECKED");
+    plan.warnings.includes("CHAIN_UNCHECKED") ||
+    plan.warnings.includes("SETTLER_UNKNOWN");
   if (!realFunds) return;
   if (deps.interactive) {
     const sure = await deps.confirm(
