@@ -31,10 +31,11 @@ afterEach(() => mock.close());
 
 async function place(
   account: ReturnType<typeof privateKeyToAccount>,
-  spreadBps: number
+  spreadBps: number,
+  limit?: string
 ) {
   const plan = await planOrder(
-    { amount: "1", sell: "WETH", buy: "USDC", spreadBps, ttl: "1h" },
+    { amount: "1", sell: "WETH", buy: "USDC", spreadBps, ttl: "1h", limit },
     {
       api: createHttpApi({ network }),
       chain: createChain({ rpcUrl: network.rpcUrl }).reader,
@@ -127,5 +128,43 @@ describe("the local mock of Turbine", () => {
     const other = privateKeyToAccount(generatePrivateKey());
     await place(one, 20);
     expect(await mine(other)).toEqual([]);
+  });
+
+  it("never fills below an order's limit, and lets an order expire at its end", async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    await place(account, 20, "2600");
+    clock += 60_000;
+    const [waiting] = await mine(account);
+    expect(waiting?.status).toBe("Active");
+    expect(waiting?.executedSellAmount).toBe(0n);
+    clock += 2 * 3_600_000;
+    expect((await mine(account))[0]?.status).toBe("Expired");
+  });
+
+  it("refuses to cancel an order that is already done", async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const { hash } = await place(account, 20);
+    clock += 60_000;
+    await expect(
+      submitCancel(
+        hash,
+        mock.settler,
+        { kind: "account", account },
+        { network }
+      )
+    ).rejects.toThrow();
+  });
+
+  it("refuses a malformed order instead of storing it, so the list keeps working", async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const response = await fetch(`${mock.apiUrl}/eip712/add_order`, {
+      method: "POST",
+      body: JSON.stringify({
+        payload: { order: null },
+        auth: { signer: account.address },
+      }),
+    });
+    expect(response.status).toBe(400);
+    expect(await mine(account)).toEqual([]);
   });
 });

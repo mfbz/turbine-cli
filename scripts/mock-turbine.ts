@@ -107,6 +107,8 @@ function mid(sell: Token, buy: Token, ms: number) {
   };
 }
 
+// Every step that would happen: before the order ends, and never below its limit (a step whose price
+// is below the floor simply doesn't trade, as on Turbine).
 function fills(order: Order) {
   const bps = Number(order.spreadCurve.startDeltaBps ?? 0);
   // Better than mid: no taker comes at today's prices.
@@ -115,6 +117,8 @@ function fills(order: Order) {
   const buy = token(order.order.buyToken);
   if (!sell || !buy) return [];
   const total = BigInt(order.order.sellAmount);
+  const floor = BigInt(order.order.minBuyAmount);
+  const endMs = Number(order.order.endTime) * 1000;
   let left = total;
   return FILL_SHARES.map((share, i) => {
     const sold = i === FILL_SHARES.length - 1 ? left : (total * share) / 100n;
@@ -126,6 +130,7 @@ function fills(order: Order) {
       (price.denominator * 10_000n);
     return {
       at,
+      trades: at < endMs && bought * total >= floor * sold,
       txHash: keccak256(stringToBytes(`${order.hash}:${i}`)),
       // The block number is the fill's second, so a block's timestamp is its number.
       blockNumber: Math.floor(at / 1000),
@@ -143,7 +148,7 @@ function fills(order: Order) {
 function state(order: Order, now: number) {
   const cutoff = Math.min(now, order.cancelledMs ?? now);
   const all = fills(order);
-  const done = all.filter((f) => f.at <= cutoff);
+  const done = all.filter((f) => f.trades && f.at <= cutoff);
   const filled = all.length > 0 && done.length === all.length;
   const status = filled
     ? "Filled"
@@ -221,6 +226,11 @@ function quote(body: Record<string, unknown>, now: number) {
   const buy = token(String(body.buyToken));
   if (!sell || !buy)
     return { status: 400, body: { code: "TOKEN_NOT_SUPPORTED" } };
+  if (
+    !UINT.test(String(body.sellAmount)) ||
+    BigInt(String(body.sellAmount)) === 0n
+  )
+    return { status: 400, body: { code: "INVALID_AMOUNT" } };
   const sellAmount = BigInt(String(body.sellAmount));
   const price = mid(sell, buy, now);
   const atMid = (sellAmount * price.numerator) / price.denominator;
@@ -278,6 +288,29 @@ function rpc(method: string, params: unknown[], now: number): unknown {
   }
 }
 
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+// The SDK sends bigints as hex strings ("0x…"); decimal strings are accepted too.
+const UINT = /^(?:\d{1,78}|0x[0-9a-fA-F]{1,64})$/;
+
+// Only what a stored order needs, so one bad request can't break a wallet's list later.
+function valid(payload: unknown): Pick<Order, "order" | "spreadCurve"> {
+  const p = payload as Partial<Pick<Order, "order" | "spreadCurve">> | null;
+  const o = p?.order;
+  const ok =
+    typeof o === "object" &&
+    o !== null &&
+    ADDRESS.test(String(o.sellToken)) &&
+    ADDRESS.test(String(o.buyToken)) &&
+    [o.sellAmount, o.minBuyAmount, o.startTime, o.endTime].every((v) =>
+      UINT.test(String(v))
+    ) &&
+    BigInt(o.sellAmount) > 0n &&
+    typeof p?.spreadCurve === "object" &&
+    p.spreadCurve !== null;
+  if (!ok || !o || !p.spreadCurve) throw new Error("invalid order");
+  return { order: o, spreadCurve: p.spreadCurve };
+}
+
 function readBody(request: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -314,7 +347,7 @@ function startMockTurbine(options: MockOptions): Promise<MockTurbine> {
   let apiUrl = "";
 
   const add = (envelope: Envelope): Hex => {
-    const payload = envelope.payload as Pick<Order, "order" | "spreadCurve">;
+    const payload = valid(envelope.payload);
     const owner = String(envelope.auth?.signer ?? "").toLowerCase();
     const hash = keccak256(
       stringToBytes(`${JSON.stringify(payload)}:${orders.size}:${now()}`)
@@ -345,13 +378,21 @@ function startMockTurbine(options: MockOptions): Promise<MockTurbine> {
       case "/api/eip712/add_orders":
         return {
           status: 200,
-          body: (body as Envelope[]).map((e) => ({ orderHash: add(e) })),
+          body: (Array.isArray(body) ? (body as Envelope[]) : [])
+            .map((e) => ({ ...e, payload: valid(e.payload) }))
+            .map((e) => ({ orderHash: add(e) })),
         };
       case "/api/eip712/cancel_order": {
         const hash = (envelope.payload as { orderHash?: Hex }).orderHash;
         const order = hash ? orders.get(hash) : undefined;
         if (!order || order.owner !== signer)
           return { status: 404, body: { code: "ORDER_NOT_FOUND" } };
+        if (
+          !["Active", "PendingCancellation"].includes(
+            state(order, now()).status
+          )
+        )
+          return { status: 400, body: { code: "ORDER_NOT_CANCELLABLE" } };
         order.cancelledMs ??= now();
         return { status: 200, body: { orderHash: order.hash } };
       }
@@ -408,7 +449,8 @@ function startMockTurbine(options: MockOptions): Promise<MockTurbine> {
       .catch(() => send(response, 400, { code: "BAD_REQUEST" }));
   });
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
     server.listen(options.port, "127.0.0.1", () => {
       const address = server.address();
       const port = typeof address === "object" && address ? address.port : 0;
@@ -429,7 +471,15 @@ function startMockTurbine(options: MockOptions): Promise<MockTurbine> {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.MOCK_TURBINE_PORT ?? DEFAULT_PORT);
-  const mock = await startMockTurbine({ port });
+  const mock = await startMockTurbine({ port }).catch((error: unknown) => {
+    const busy = (error as NodeJS.ErrnoException).code === "EADDRINUSE";
+    console.error(
+      busy
+        ? `Port ${port} is in use. Choose another: MOCK_TURBINE_PORT=4747 npm run mock`
+        : "The mock couldn't start."
+    );
+    process.exit(1);
+  });
   console.log(`A local mock of Turbine's playground is running on 127.0.0.1:${port}.
 
 In another terminal:

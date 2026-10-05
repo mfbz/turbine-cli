@@ -88,7 +88,9 @@ turbine --account demo order watch 0x…             # fills arrive; q to stop, 
 turbine --account demo order cancel 0x…            # the -10 bps level waits: cancel it
 ```
 
-The mock's wallet holds no tokens and has Permit2 approved, so summaries warn about the balance and nothing else. It doesn't verify signatures: it shows turbine-cli's side of the flow, not Turbine's checks.
+To the mock, every wallet holds no tokens and has Permit2 approved, so summaries warn about the balance and nothing else. Orders fill in three steps, never below their limit and never after they end; finished orders can't be cancelled. It doesn't verify signatures: it shows turbine-cli's side of the flow, not Turbine's checks or matching.
+
+What a wallet signs there is the same Ethereum data a real order would (Turbine's settler, chain 1), and it never leaves your computer. Use a fresh wallet anyway, as on the playground.
 
 ## Scripts and agents
 
