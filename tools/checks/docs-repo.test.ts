@@ -19,6 +19,16 @@ describe("public docs", () => {
     expect(readRepoFile("TURBINE-CLI.md")).toMatch(rule);
   });
 
+  it.each([
+    "TURBINE-CLI.md",
+    "AGENTS.md",
+    ".agents/skills/turbine-conventions/SKILL.md",
+  ])("%s states the one --json output contract", (file) => {
+    expect(readRepoFile(file)).toContain(
+      "exactly one JSON document on stdout, errors included"
+    );
+  });
+
   it.each(["AGENTS.md", "SECURITY.md"])(
     "%s carries the safety rules agents and reporters rely on",
     (file) => {
