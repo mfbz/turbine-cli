@@ -11,7 +11,18 @@ import { readWallet } from "./store.ts";
 import type { WalletRef } from "./store.ts";
 
 type Hex = `0x${string}`;
-type Prompter = { secret(message: string): Promise<string | undefined> };
+type Choice<T extends string> = { value: T; label: string; hint?: string };
+// Everything turbine-cli asks a person, so commands and tests never touch the terminal directly.
+// Each returns undefined when the person cancels (Ctrl-C, Esc).
+type Prompter = {
+  secret(message: string): Promise<string | undefined>;
+  choose<T extends string>(
+    message: string,
+    choices: readonly Choice<T>[]
+  ): Promise<T | undefined>;
+  confirm(message: string): Promise<boolean | undefined>;
+  text(message: string, initial: string): Promise<string | undefined>;
+};
 type PasswordSources = {
   file?: string;
   env?: string;
@@ -88,4 +99,4 @@ async function unlockWallet(
 }
 
 export { readPassword, unlockWallet };
-export type { Hex, PasswordSources, Prompter, Unlocked };
+export type { Choice, Hex, PasswordSources, Prompter, Unlocked };

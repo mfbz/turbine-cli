@@ -74,6 +74,24 @@ Output rules:
 
 Flags, the `--json` shape and acceptance checks are added to each command here with the change that builds it.
 
+### `turbine` (the interactive session)
+
+`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
+
+- Switching to mainnet asks for confirmation first; the header and every summary name the network.
+- An action that fails shows its error and returns to the menu; Ctrl-C or Esc at the menu quits.
+- Without a terminal, or with `--json`, `turbine` prints help instead (as a `{ "help" }` document with `--json`).
+
+Status: done.
+
+Acceptance:
+
+- [x] In a terminal the header and the menu open; quitting exits 0; a cancelled menu quits (`src/cli.test.ts` "the interactive session").
+- [x] An action's error is shown and the session carries on (`src/cli.test.ts` "shows an error from one action and carries on").
+- [x] Mainnet needs a confirmation, and the setup then says mainnet (`src/cli.test.ts` "asks before switching to mainnet").
+- [x] The header fits 80, 56 and narrower terminals, marks mainnet, and gives the cursor back even if drawing fails (`src/ui/header.test.ts`).
+- [x] The logo frames are generated from the SVG and committed exactly as generated (`scripts/build-logo.test.ts`).
+
 ### `turbine config`
 
 Shows what turbine-cli will use: the network, the Turbine API, the RPC endpoint, and the wallet (its address and where the key came from, never the key). The quickest way to check a setup before anything is signed.

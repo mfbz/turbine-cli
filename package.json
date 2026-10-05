@@ -42,9 +42,11 @@
     "test": "vitest run",
     "build": "tsdown",
     "cli": "node src/main.ts",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "logo:build": "node scripts/build-logo.ts"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^24.19.1",
     "eslint": "^9.39.5",
     "prettier": "^3.9.9",

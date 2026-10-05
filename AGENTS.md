@@ -29,7 +29,10 @@ npm run format            # Prettier (a Claude hook also formats each edited fil
 npm test                  # Vitest: src/ and tools/checks/, including the repo-wide guards
 npm run build             # bundle to dist/main.mjs (tsdown)
 npm run cli -- --help     # run the CLI from source
+npm run logo:build        # after changing assets/brand/turbine-logo.svg or scripts/build-logo.ts
 ```
+
+Generated (never edit by hand): `src/ui/logo-frames.ts` (from `assets/brand/turbine-logo.svg`; Turbine's logo belongs to PropellerHeads, see `assets/brand/NOTICE.md`).
 
 ## Decisions that bind
 

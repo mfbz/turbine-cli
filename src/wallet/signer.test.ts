@@ -25,7 +25,12 @@ function tempDir(): string {
 }
 
 function prompter(...answers: Array<string | undefined>): Prompter {
-  return { secret: () => Promise.resolve(answers.shift()) };
+  return {
+    secret: () => Promise.resolve(answers.shift()),
+    choose: () => Promise.resolve(undefined),
+    confirm: () => Promise.resolve(undefined),
+    text: () => Promise.resolve(undefined),
+  };
 }
 
 function sources(over: Partial<PasswordSources> = {}): PasswordSources {

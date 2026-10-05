@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { homedir } from "node:os";
 
-import { isCancel, password } from "@clack/prompts";
+import { confirm, isCancel, password, select, text } from "@clack/prompts";
 
 import { run } from "./cli.ts";
+import type { Choice } from "./wallet/signer.ts";
 
 // A reader that stops early (`turbine orders --json | head`) is a normal pipeline, not a crash.
 for (const stream of [process.stdout, process.stderr]) {
@@ -21,13 +22,48 @@ process.exitCode = await run(process.argv.slice(2), {
   platform: process.platform,
   stdoutInfo: process.stdout,
   interactive: process.stdin.isTTY && process.stdout.isTTY,
+  // Prompts draw on stderr: stdout is only for the result (one --json document). A cancelled prompt
+  // (Ctrl-C, Esc) is undefined.
   prompter: {
-    // Hidden input, on the terminal only; a cancelled prompt (Ctrl-C, Esc) is undefined.
     async secret(message) {
-      // On stderr: stdout is only for the result (one --json document).
       const answer = await password({
         message,
         mask: "•",
+        output: process.stderr,
+      });
+      return isCancel(answer) ? undefined : answer;
+    },
+    async choose<T extends string>(
+      message: string,
+      choices: readonly Choice<T>[]
+    ): Promise<T | undefined> {
+      // clack's option type is conditional on a concrete value type, so it is asked with string and
+      // narrowed back: the answer is always one of the values offered.
+      const answer = await select<string>({
+        message,
+        options: choices.map((c) =>
+          c.hint === undefined
+            ? { value: c.value, label: c.label }
+            : { value: c.value, label: c.label, hint: c.hint }
+        ),
+        output: process.stderr,
+      });
+      return isCancel(answer)
+        ? undefined
+        : choices.find((c) => c.value === answer)?.value;
+    },
+    async confirm(message) {
+      const answer = await confirm({
+        message,
+        initialValue: false,
+        output: process.stderr,
+      });
+      return isCancel(answer) ? undefined : answer;
+    },
+    async text(message, initial) {
+      const answer = await text({
+        message,
+        initialValue: initial,
         output: process.stderr,
       });
       return isCancel(answer) ? undefined : answer;
