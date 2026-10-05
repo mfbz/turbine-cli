@@ -8,31 +8,27 @@ import { CliError } from "../output/errors.ts";
 
 type Env = {
   network?: "playground" | "mainnet";
-  privateKey?: string;
-  keyFile?: string;
+  account?: string;
+  walletPassword?: string;
   apiUrl?: string;
   rpcUrl?: string;
 };
 type Source = Record<string, string | undefined>;
 
-// Variable → field. Values are never echoed in errors: one of them is a signing key.
+// Variable → field. Values are never echoed in errors: one of them is a wallet password.
 const VARIABLES = {
   TURBINE_NETWORK: "network",
-  TURBINE_PRIVATE_KEY: "privateKey",
-  TURBINE_KEY_FILE: "keyFile",
+  TURBINE_ACCOUNT: "account",
+  TURBINE_WALLET_PASSWORD: "walletPassword",
   TURBINE_API_URL: "apiUrl",
   TURBINE_RPC_URL: "rpcUrl",
 } as const;
 const SCHEMA = z.object({
-  network: z
-    .enum(["playground", "mainnet"], {
-      error: "must be playground or mainnet",
-    })
-    .optional(),
-  privateKey: z.string().optional(),
-  keyFile: z.string().optional(),
-  apiUrl: z.url({ error: "must be a URL" }).optional(),
-  rpcUrl: z.url({ error: "must be a URL" }).optional(),
+  network: z.enum(["playground", "mainnet"]).optional(),
+  account: z.string().optional(),
+  walletPassword: z.string().optional(),
+  apiUrl: z.url().optional(),
+  rpcUrl: z.url().optional(),
 });
 
 function variableFor(field: PropertyKey | undefined): string {
@@ -47,15 +43,11 @@ const ENDPOINTS = ["TURBINE_API_URL", "TURBINE_RPC_URL"] as const;
 function readEnv(source: Source, dotenvText?: string): Env {
   const dotenv: Source = dotenvText ? parseEnv(dotenvText) : {};
   const endpoint = ENDPOINTS.find((name) => dotenv[name]?.trim());
-  if (endpoint) {
-    throw new CliError(
-      "ENDPOINT_IN_DOTENV",
-      `${endpoint} is set in .env, where turbine-cli doesn't accept it.`,
-      {
-        hint: `Remove it from .env and set it in your shell instead (export ${endpoint}=…).`,
-      }
-    );
-  }
+  if (endpoint)
+    throw new CliError("ENDPOINT_IN_DOTENV", { variable: endpoint });
+  // A wallet password in a file anyone might commit or ship is a password already shared.
+  if (dotenv.TURBINE_WALLET_PASSWORD?.trim())
+    throw new CliError("PASSWORD_IN_DOTENV");
   // The real environment wins over .env, like most tools that read one.
   const merged: Source = { ...dotenv, ...source };
   const raw: Record<string, string> = {};
@@ -66,11 +58,8 @@ function readEnv(source: Source, dotenvText?: string): Env {
   }
   const parsed = SCHEMA.safeParse(raw);
   if (!parsed.success) {
-    const problems = parsed.error.issues.map(
-      (issue) => `${variableFor(issue.path[0])} ${issue.message}`
-    );
-    throw new CliError("CONFIG_INVALID", `${problems.join("; ")}.`, {
-      hint: "Fix it in your environment or in .env (see .env.example).",
+    throw new CliError("CONFIG_INVALID", {
+      variable: variableFor(parsed.error.issues[0]?.path[0]),
     });
   }
   return parsed.data;

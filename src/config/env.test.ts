@@ -28,8 +28,8 @@ describe("readEnv", () => {
     expect(
       readEnv({
         TURBINE_NETWORK: "",
-        TURBINE_PRIVATE_KEY: "",
-        TURBINE_KEY_FILE: " ",
+        TURBINE_ACCOUNT: " ",
+        TURBINE_WALLET_PASSWORD: "",
         TURBINE_API_URL: "",
       })
     ).toEqual({});
@@ -39,31 +39,31 @@ describe("readEnv", () => {
     expect(
       readEnv({
         TURBINE_NETWORK: "playground",
-        TURBINE_PRIVATE_KEY: "abc",
-        TURBINE_KEY_FILE: "./key.txt",
+        TURBINE_ACCOUNT: "trading",
+        TURBINE_WALLET_PASSWORD: "correct horse",
         TURBINE_API_URL: "http://localhost:3000/api",
         TURBINE_RPC_URL: "https://rpc.example.com",
       })
     ).toEqual({
       network: "playground",
-      privateKey: "abc",
-      keyFile: "./key.txt",
+      account: "trading",
+      walletPassword: "correct horse",
       apiUrl: "http://localhost:3000/api",
       rpcUrl: "https://rpc.example.com",
     });
   });
 
   it("lets the real environment win over .env", () => {
-    const dotenv = "TURBINE_NETWORK=mainnet\nTURBINE_KEY_FILE=./from-dotenv\n";
+    const dotenv = "TURBINE_NETWORK=mainnet\nTURBINE_ACCOUNT=from-dotenv\n";
     expect(readEnv({ TURBINE_NETWORK: "playground" }, dotenv)).toEqual({
       network: "playground",
-      keyFile: "./from-dotenv",
+      account: "from-dotenv",
     });
   });
 
   it("parses comments and quotes in .env", () => {
-    const dotenv = '# a comment\nTURBINE_KEY_FILE="./my key"\n';
-    expect(readEnv({}, dotenv)).toEqual({ keyFile: "./my key" });
+    const dotenv = '# a comment\nTURBINE_ACCOUNT="trading"\n';
+    expect(readEnv({}, dotenv)).toEqual({ account: "trading" });
   });
 
   it("names a bad setting without repeating its value", () => {
@@ -71,15 +71,12 @@ describe("readEnv", () => {
       readEnv({ TURBINE_API_URL: "not a url secretvalue" })
     );
     expect(error.code).toBe("CONFIG_INVALID");
-    expect(error.message).toContain("TURBINE_API_URL");
-    expect(error.message).not.toContain("secretvalue");
+    expect(error.params).toEqual({ variable: "TURBINE_API_URL" });
   });
 
-  it("lists the networks it accepts", () => {
+  it("rejects an unknown network", () => {
     const error = thrown(() => readEnv({ TURBINE_NETWORK: "testnet" }));
-    expect(error.code).toBe("CONFIG_INVALID");
-    expect(error.message).toContain("playground");
-    expect(error.message).toContain("mainnet");
+    expect(error.params).toEqual({ variable: "TURBINE_NETWORK" });
   });
 });
 
@@ -91,7 +88,6 @@ describe("endpoints in .env", () => {
     ]) {
       const error = thrown(() => readEnv({}, `${line}\n`));
       expect(error.code, line).toBe("ENDPOINT_IN_DOTENV");
-      expect(error.hint).toMatch(/shell/i);
     }
   });
 
@@ -104,12 +100,20 @@ describe("endpoints in .env", () => {
   });
 });
 
+describe("the wallet password in .env", () => {
+  it("is refused: a .env can come with any folder", () => {
+    expect(
+      thrown(() => readEnv({}, "TURBINE_WALLET_PASSWORD=hunter22\n")).code
+    ).toBe("PASSWORD_IN_DOTENV");
+  });
+});
+
 describe("loadEnv", () => {
   it("reads .env from the folder it runs in", () => {
     const cwd = mkdtempSync(join(tmpdir(), "turbine-env-"));
     dirs.push(cwd);
-    writeFileSync(join(cwd, ".env"), "TURBINE_KEY_FILE=./k\n");
-    expect(loadEnv({ env: {}, cwd })).toEqual({ keyFile: "./k" });
+    writeFileSync(join(cwd, ".env"), "TURBINE_ACCOUNT=trading\n");
+    expect(loadEnv({ env: {}, cwd })).toEqual({ account: "trading" });
   });
 
   it("works without a .env", () => {

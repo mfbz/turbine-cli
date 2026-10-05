@@ -1,5 +1,5 @@
-import { redact } from "../wallet/redact.ts";
-import { toErrorReport } from "./errors.ts";
+import { redact, redactValue } from "../wallet/redact.ts";
+import { CliError, toErrorReport } from "./errors.ts";
 import type { ExitCode } from "./errors.ts";
 import type { Theme } from "./theme.ts";
 
@@ -36,6 +36,7 @@ function plain(text: string, options: { newlines?: boolean } = {}): string {
 }
 
 // bigint is how the SDK and viem carry token amounts; JSON has no such type, so they become strings.
+// redactValue has already turned them into strings by the time a document is written.
 function toJson(value: unknown): string {
   return JSON.stringify(value, (_key, v: unknown) =>
     typeof v === "bigint" ? v.toString() : v
@@ -44,28 +45,48 @@ function toJson(value: unknown): string {
 
 function createOutput(options: OutputOptions): Output {
   const { json, debug, theme } = options;
-  const clean = (text: string) => redact(text, options.secrets());
-  const out = (text: string) => options.stdout(clean(text));
-  const err = (text: string) => options.stderr(clean(text));
+  const secrets = () => options.secrets();
+  const out = (text: string) => options.stdout(redact(text, secrets()));
+  // Documents are redacted value by value before they're serialised; scrubbing the JSON text itself
+  // could cut through its quotes and braces.
+  const document = (value: unknown) =>
+    options.stdout(`${toJson(redactValue(value, secrets()))}\n`);
+  const err = (text: string) => options.stderr(redact(text, secrets()));
   return {
     json,
     theme,
     result(data, human) {
-      out(json ? `${toJson({ ok: true, data })}\n` : `${human(theme)}\n`);
+      if (json) document({ ok: true, data });
+      else out(`${human(theme)}\n`);
     },
     note(text) {
       if (!json) err(`${text}\n`);
     },
     fail(error) {
-      const { exitCode, stack, ...report } = toErrorReport(error, debug);
-      if (json) {
-        out(`${toJson({ ok: false, error: report })}\n`);
-        return exitCode;
+      let full = toErrorReport(error);
+      // Catalogue text can only hold safe-shaped parameters; if a secret still got in, say less.
+      const shown = `${full.message}\n${full.hint}`;
+      if (redact(shown, secrets()) !== shown) {
+        full = {
+          ...toErrorReport(new CliError("INTERNAL")),
+          debug: full.debug,
+        };
       }
-      const lines = [`${theme.error("✗ error:")} ${plain(report.message)}`];
-      if (report.hint) lines.push(theme.dim(`  ${plain(report.hint)}`));
-      if (stack) lines.push(theme.dim(plain(stack, { newlines: true })));
-      err(`${lines.join("\n")}\n`);
+      const { exitCode, debug: details, ...report } = full;
+      if (json) document({ ok: false, error: report });
+      else {
+        err(
+          `${theme.error("✗ error:")} ${plain(report.message)}\n${theme.dim(`  ${plain(report.hint)}`)}\n`
+        );
+      }
+      // Details for a bug report: class name and stack frames only, on stderr, never in the document.
+      if (debug && details) {
+        const lines = [
+          `debug: ${details.className}`,
+          ...details.frames.map((f) => `  ${f}`),
+        ];
+        err(`${theme.dim(plain(lines.join("\n"), { newlines: true }))}\n`);
+      }
       return exitCode;
     },
   };

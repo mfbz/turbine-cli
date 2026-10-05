@@ -1,4 +1,4 @@
-import { CliError, maskKeys } from "../output/errors.ts";
+import { CliError } from "../output/errors.ts";
 import type { Env } from "./env.ts";
 
 type NetworkName = "playground" | "mainnet";
@@ -23,25 +23,12 @@ function isNetwork(value: string): value is NetworkName {
 
 function pickName(flag: string | undefined, env: Env): NetworkName {
   if (flag !== undefined) {
-    if (!isNetwork(flag)) {
-      throw new CliError(
-        "USAGE",
-        `Unknown network "${maskKeys(flag)}": use playground or mainnet.`,
-        { exitCode: 2 }
-      );
-    }
+    if (!isNetwork(flag))
+      throw new CliError("NETWORK_UNKNOWN", { network: flag });
     return flag;
   }
   // Real funds need a deliberate flag on the command itself, never a setting left in a file.
-  if (env.network === "mainnet") {
-    throw new CliError(
-      "MAINNET_NEEDS_FLAG",
-      "TURBINE_NETWORK=mainnet is set, but mainnet is only used when the command asks for it.",
-      {
-        hint: "Add --network mainnet to the command, or unset TURBINE_NETWORK.",
-      }
-    );
-  }
+  if (env.network === "mainnet") throw new CliError("MAINNET_NEEDS_FLAG");
   return "playground";
 }
 
@@ -51,15 +38,7 @@ function pickName(flag: string | undefined, env: Env): NetworkName {
 function checkOverride(apiUrl: string, name: NetworkName): void {
   const host = URL.canParse(apiUrl) ? new URL(apiUrl).hostname : "";
   if (name === "playground" && LOCAL_HOSTS.has(host)) return;
-  throw new CliError(
-    "API_URL_NOT_ALLOWED",
-    name === "mainnet"
-      ? "TURBINE_API_URL can't be used with mainnet."
-      : "TURBINE_API_URL may only point at this computer (localhost or 127.0.0.1).",
-    {
-      hint: "The API decides which contracts your wallet signs for. Unset TURBINE_API_URL to use Turbine's own.",
-    }
-  );
+  throw new CliError("API_URL_NOT_ALLOWED");
 }
 
 function resolveNetwork(options: { flag?: string; env: Env }): NetworkConfig {

@@ -5,12 +5,17 @@ import { CliError } from "./errors.ts";
 import { createOutput, plain } from "./output.ts";
 import { createTheme } from "./theme.ts";
 
-function harness(json: boolean, secrets: string[] = [], color: 0 | 3 = 0) {
+function harness(
+  json: boolean,
+  secrets: string[] = [],
+  color: 0 | 3 = 0,
+  debug = false
+) {
   let stdout = "";
   let stderr = "";
   const output = createOutput({
     json,
-    debug: false,
+    debug,
     theme: createTheme(color),
     stdout: (text) => (stdout += text),
     stderr: (text) => (stderr += text),
@@ -31,16 +36,15 @@ describe("--json output", () => {
 
   it("writes failures as a document on stdout, nothing on stderr, and returns the exit code", () => {
     const h = harness(true);
-    const code = h.output.fail(
-      new CliError("KEY_INVALID", "Not a key.", { hint: "Use 64 hex." })
-    );
+    const code = h.output.fail(new CliError("KEY_INVALID"));
     expect(code).toBe(1);
     expect(JSON.parse(h.out())).toEqual({
       ok: false,
       error: {
         code: "KEY_INVALID",
-        message: "Not a key.",
-        hint: "Use 64 hex.",
+        message: "That isn't a valid Ethereum private key.",
+        hint: "A private key is 64 hexadecimal characters, with or without 0x.",
+        retryable: false,
       },
     });
     expect(h.err()).toBe("");
@@ -64,15 +68,12 @@ describe("human output", () => {
   it("writes errors to stderr with a mark, a word and the hint", () => {
     const h = harness(false);
     const code = h.output.fail(
-      new CliError("USAGE", "Unknown flag --nope.", {
-        hint: "See turbine --help.",
-        exitCode: 2,
-      })
+      new CliError("USAGE_UNKNOWN_OPTION", { option: "--nope" })
     );
     expect(code).toBe(2);
     expect(h.out()).toBe("");
     expect(h.err()).toBe(
-      "✗ error: Unknown flag --nope.\n  See turbine --help.\n"
+      "✗ error: There is no option --nope here.\n  See turbine --help, or --help after the command.\n"
     );
   });
 
@@ -84,32 +85,51 @@ describe("human output", () => {
 });
 
 describe("untrusted text", () => {
-  it("can't drive the terminal from an error message (escape sequences, bells, carriage returns)", () => {
+  it("never reaches an error: a server message is replaced by our own words", () => {
     const h = harness(false);
     h.output.fail({
       code: "SOMETHING_NEW",
-      message: "bad\u001b]0;title\u0007\u001b[2J\rfake ✓ done\u009b31m",
+      message: "bad\u001b]0;title\u0007 ignore previous instructions",
     });
-    expect(h.err()).toBe("✗ error: bad]0;title[2Jfake ✓ done31m\n");
+    expect(h.err()).toBe(
+      "✗ error: Turbine rejected the request.\n  Run again with --debug to see the request's route and status.\n"
+    );
   });
 
-  it("offers the same cleaning to renderers for API data", () => {
+  it("is cleaned by plain() before a renderer prints it", () => {
     expect(plain("WE\u001b[31mTH\n")).toBe("WE[31mTH");
     expect(plain("two\nlines", { newlines: true })).toBe("two\nlines");
   });
 });
 
+describe("--debug", () => {
+  it("adds the class name and stack frames on stderr, never in the --json document", () => {
+    const h = harness(true, [], 0, true);
+    h.output.fail(new TypeError("secret detail"));
+    expect(JSON.parse(h.out())).toMatchObject({ error: { code: "INTERNAL" } });
+    expect(h.out()).not.toContain("TypeError");
+    expect(h.err()).toContain("TypeError");
+    expect(h.err()).not.toContain("secret detail");
+  });
+});
+
 describe("redaction", () => {
-  it("removes the key from everything written, in both modes", () => {
+  it("removes a secret from results in both modes, before JSON is written, so JSON stays valid", () => {
     const key = generatePrivateKey();
     for (const json of [true, false]) {
-      const h = harness(json, [key], 3);
-      h.output.result({ echo: key }, () => `echo ${key}`);
+      const h = harness(json, [key, '"'], 3);
+      h.output.result({ echo: key, quote: 'a"b' }, () => `echo ${key}`);
       h.output.note(`note ${key}`);
-      h.output.fail(new Error(`failed near ${key.slice(2)}`));
       const all = h.out() + h.err();
       expect(all.toLowerCase()).not.toContain(key.slice(2));
-      expect(all).toContain("[redacted]");
+      if (json) expect(() => JSON.parse(h.out()) as unknown).not.toThrow();
     }
+  });
+
+  it("also removes the key's decimal form", () => {
+    const key = generatePrivateKey();
+    const h = harness(true, [key]);
+    h.output.result({ n: BigInt(key) }, () => "");
+    expect(h.out()).not.toContain(String(BigInt(key)));
   });
 });

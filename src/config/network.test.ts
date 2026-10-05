@@ -32,7 +32,6 @@ describe("resolveNetwork", () => {
   it("refuses mainnet from the environment alone", () => {
     const error = thrown(() => resolveNetwork({ env: { network: "mainnet" } }));
     expect(error.code).toBe("MAINNET_NEEDS_FLAG");
-    expect(error.hint).toContain("--network mainnet");
   });
 
   it("lets the flag win over the environment", () => {
@@ -46,8 +45,8 @@ describe("resolveNetwork", () => {
 
   it("rejects an unknown network as a usage error", () => {
     const error = thrown(() => resolveNetwork({ flag: "testnet", env: {} }));
-    expect(error.code).toBe("USAGE");
-    expect(error.exitCode).toBe(2);
+    expect(error.code).toBe("NETWORK_UNKNOWN");
+    expect(error.params).toEqual({ network: "testnet" });
   });
 
   it("refuses an API override pointing anywhere but this computer, since the API decides what gets signed", () => {
