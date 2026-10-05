@@ -5,7 +5,7 @@ Thanks for helping. turbine-cli is built by people and by coding agents, with th
 ## Setup
 
 - Node 24 (`.nvmrc`), then `npm ci`. Installing also switches on the Git hooks (`core.hooksPath` → `.githooks/`).
-- Copy `.env.example` to `.env` only if you need a wallet; the playground needs no real funds. Use a dedicated wallet with a small balance.
+- For the playground, create a throwaway wallet with `turbine wallet new` (no real funds involved). `.env.example` lists every setting; turbine-cli reads them from your shell only.
 - Windows: enable symlinks before cloning (`git config --global core.symlinks true`, Developer Mode on) so `.claude/skills` works.
 
 ```bash
@@ -20,7 +20,7 @@ npm run build             # bundle to dist/main.mjs
 2. **One topic per branch**, from an up-to-date `main`: `feat/…`, `fix/…`, `perf/…`, `docs/…`, `chore/…`, `ci/…`, `test/…`, `refactor/…`. Conventional commits.
 3. **Tests first.** Write the test, watch it fail, make it pass.
 4. **Green and reviewed.** `npm run check` passes locally and in CI, and the branch gets an independent, adversarial review before its pull request ([AGENTS.md](AGENTS.md), "Workflow"): findings are reproduced, then fixed or rejected with a reason in the pull request's Evidence.
-5. **Pull request to `main`**, titled as a conventional commit (`fix(order): …`). The maintainer reviews it and squash-merges it once the `ci` check passes, so each pull request becomes one commit on `main`; the branch is then deleted. If `main` moved on meanwhile, merge `main` into the branch (no force-push).
+5. **Pull request to `main`**, titled as a conventional commit (`fix(order): …`). The maintainer reviews it and squash-merges it once the `ci` check passes, so each pull request becomes one commit on `main`; the branch is then deleted. A coding agent may squash-merge only when the maintainer has said so for that work, after `ci` is green and the independent review is recorded in the pull request. If `main` moved on meanwhile, merge `main` into the branch (no force-push).
 
 Coding agents (Claude Code, Codex and others) read [AGENTS.md](AGENTS.md) and the skills in `.agents/skills/`. Issues created with the "Task" form are ready for an agent to pick up.
 
@@ -48,7 +48,7 @@ The guards block:
 - an AI tool or bot credited as a co-author (people crediting each other is fine)
 - files over 1 MB
 
-Claude Code is also denied `--no-verify`, changing `core.hooksPath`, editing `.githooks/`, pushing to `main` and merging pull requests (`.claude/settings.json`). Other agents get the same rules from AGENTS.md.
+Claude Code is also denied `--no-verify`, changing `core.hooksPath`, editing `.githooks/` and pushing to `main` (`.claude/settings.json`). Other agents get the same rules from AGENTS.md.
 
 If a guard trips:
 

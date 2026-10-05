@@ -35,8 +35,9 @@ npm run cli -- --help     # run the CLI from source
 
 - **Playground is the default.** Mainnet only with an explicit `--network mainnet` and a confirmation that shows amount, tokens, spread, limit and lifetime.
 - **`--dry-run` everywhere**: every command that signs or sends can show exactly what it would sign and send instead.
-- **Never sign silently.** Keys come from `TURBINE_PRIVATE_KEY` or an owner-only `TURBINE_KEY_FILE`; they are never logged, printed, written or committed, and are redacted from every output, errors and `--json` included.
-- Output: `--json` prints exactly one JSON document on stdout, errors included (`{ "error": … }`), with a non-zero exit code on failure. Without `--json`, errors go to stderr. Human output respects `NO_COLOR` and non-TTY.
+- **Never sign silently.** Keys live only in encrypted keystores (`turbine wallet new|import`, or Foundry's), unlocked by a hidden prompt, `--password-file` or `TURBINE_WALLET_PASSWORD` from the shell. turbine-cli never takes a raw key from an argument, a variable or a file, and refuses a key-shaped argument. Commands get a signer, never the key.
+- **Errors come from the catalogue only** (`src/output/errors.ts`): never print a library's or the API's error text, or a typed value. Add a catalogue code instead.
+- Output: `--json` prints exactly one JSON document on stdout, errors included (`{ "ok": true, "data": … }` or `{ "ok": false, "error": { "code", "message", "hint" } }`), with a non-zero exit code on failure. Without `--json`, errors go to stderr. Human output respects `NO_COLOR` and non-TTY.
 - The user-facing agent skill always quotes first, dry-runs, and asks a human before `place`, `ladder` or `cancel`.
 - turbine-cli is a standalone product. Write it that way everywhere (code, docs, commits, PRs, issues): no personal context, no backstory, and always "unofficial, not affiliated with Turbine or PropellerHeads".
 - KISS. No secrets in the repo, ever, not even well-known development keys: tests generate keys at run time.
@@ -62,7 +63,7 @@ Details and examples: skill `turbine-conventions`.
 ## Git
 
 - Trunk-based: `main` is the only long-lived branch and is always green. Every change starts on a short branch from an up-to-date `main`: `feat/…`, `fix/…`, `perf/…`, `docs/…`, `chore/…`, `ci/…`, `test/…`, `refactor/…`. Conventional commits (`feat(order): …`, `fix(watch): …`).
-- A change reaches `main` only through a pull request whose checks pass. Push the branch, open the PR against `main` (`gh pr create`) with the template filled in; its title is a conventional commit, because it becomes the one commit on `main`. The maintainer reviews and squash-merges it. Agents never merge their own PR.
+- A change reaches `main` only through a pull request whose checks pass. Push the branch, open the PR against `main` (`gh pr create`) with the template filled in; its title is a conventional commit, because it becomes the one commit on `main`. The maintainer reviews and squash-merges it. An agent squash-merges a PR only when the maintainer has said so for that work, only after `ci` is green and the independent review is recorded in the PR, and never with failing or pending checks.
 - Behind `main`? Merge `main` into your branch (no rebase of pushed work, no force-push). Never push to `main`, never commit `.env` files or keys.
 - Never bump versions (they stay `0.0.0` in the code), create tags or publish; releases are the maintainer's, by hand (CONTRIBUTING "Releasing").
 - Never credit an AI tool as an author: no `Co-Authored-By` trailers for coding agents, no "Generated with …" lines, in commits, PRs, issues or docs.

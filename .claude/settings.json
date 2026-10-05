@@ -45,7 +45,6 @@
       "Bash(git push * --force*)",
       "Bash(git push * -f*)",
       "Bash(git push * +*)",
-      "Bash(gh pr merge*)",
       "Edit(./.githooks/**)",
       "Read(./.env)",
       "Read(./.env.local)",
@@ -59,7 +58,9 @@
       "Read(./keystore/**)",
       "Read(./**/wallet*.json)",
       "Read(./**/*.key)",
-      "Read(./**/*.pem)"
+      "Read(./**/*.pem)",
+      "Read(~/.config/turbine-cli/**)",
+      "Read(~/.foundry/keystores/**)"
     ]
   }
 }

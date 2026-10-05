@@ -31,7 +31,6 @@ describe("Claude Code deny rules", () => {
     "git push --force",
     "git push -f origin feat/x",
     "git push origin +feat/x",
-    "gh pr merge 3 --squash",
   ])("stop `%s`", (command) => {
     expect(denied(command)).toBe(true);
   });
@@ -43,6 +42,10 @@ describe("Claude Code deny rules", () => {
     "git config --get core.hooksPath",
   ])("let ordinary work through: `%s`", (command) => {
     expect(denied(command)).toBe(false);
+  });
+
+  it("lets an agent merge, which AGENTS.md allows only when the maintainer says so and ci is green", () => {
+    expect(denied("gh pr merge 3 --squash --admin")).toBe(false);
   });
 
   it("keeps .env.example readable while .env files and keystores are not", () => {
@@ -57,6 +60,8 @@ describe("Claude Code deny rules", () => {
       "Read(./keys/**)",
       "Read(./keystore/**)",
       "Read(./**/wallet*.json)",
+      "Read(~/.config/turbine-cli/**)",
+      "Read(~/.foundry/keystores/**)",
     ])
       expect(reads).toContain(rule);
   });

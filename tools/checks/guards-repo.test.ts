@@ -26,7 +26,7 @@ describe("guards on everything that would be committed", () => {
   const files = textFiles();
   const home = homedir();
 
-  it("holds no keys, seed phrases or tokens (keys belong in the environment or a key file outside the repo)", () => {
+  it("holds no keys, seed phrases or tokens (keys live in encrypted wallets outside the repo)", () => {
     const found = files.flatMap(([path, text]) =>
       findSecrets(text).map((f) => `${path}: ${f.rule} (${f.match})`)
     );
