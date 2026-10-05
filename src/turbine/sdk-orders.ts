@@ -4,6 +4,7 @@
 // signature, which the SDK makes just before sending. So a dry run shows exactly what would be signed,
 // and nothing can be sent.
 import { getRandomSalt, spreads, TurbineClient } from "turbine-sdk";
+import type { GetOrdersOptions, OrderState } from "turbine-sdk";
 import {
   createPublicClient,
   createWalletClient,
@@ -216,5 +217,17 @@ async function submitCancel(
   );
 }
 
-export { submitCancel, submitOrder };
+/** The wallet's orders. In signed-request mode even reading them is a signed query, so it needs the key. */
+async function listOrders(
+  account: Account,
+  settler: Hex,
+  query: GetOrdersOptions,
+  deps: SdkDeps
+): Promise<OrderState[]> {
+  const client = await quietly(() => connect(account, deps, settler));
+  const { orders } = await quietly(() => client.getOrders(query));
+  return orders;
+}
+
+export { listOrders, submitCancel, submitOrder };
 export type { SdkDeps, SignRequest, Signer, Submitted };

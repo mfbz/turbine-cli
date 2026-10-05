@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createFakeApi } from "./fake-api.ts";
 import { planOrder } from "./order-plan.ts";
-import { submitCancel, submitOrder } from "./sdk-orders.ts";
+import { listOrders, submitCancel, submitOrder } from "./sdk-orders.ts";
 
 const API = "https://playground-api.turbine.exchange/api";
 const SETTLER = getAddress("0x2aadb59279619cb33d34ad1a3696e23a2effb394");
@@ -45,6 +45,46 @@ const CONFIG = {
   tokens: [],
 };
 
+const ORDERS = {
+  orders: [
+    {
+      hash: ORDER_HASH,
+      status: "Active",
+      execution: [
+        {
+          txHash: `0x${"11".repeat(32)}`,
+          blockNumber: 16,
+          soldAmount: "400000000000000000",
+          boughtAmount: "1000000000",
+          surplusBuyAmount: "0",
+          midPrice: {
+            numerator: "2500000000",
+            denominator: "1000000000000000000",
+          },
+        },
+      ],
+      orderDetails: {
+        sellToken: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+        buyToken: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        sellAmount: "1000000000000000000",
+        limitPrice: { numerator: "2400", denominator: "1" },
+        startTime: "1800000000",
+        endTime: "1800003600",
+        spreadCurve: {
+          startSecs: 0,
+          endSecs: 3600,
+          startDeltaBps: 50,
+          endDeltaBps: 50,
+          points: [],
+        },
+        createdTimestamp: "2027-01-15T08:00:00",
+      },
+    },
+  ],
+  cursor: null,
+  hasMore: false,
+};
+
 type Sent = { url: string; body: unknown };
 let sent: Sent[] = [];
 
@@ -73,6 +113,7 @@ function stubApi() {
         return reply({ orderHash: ORDER_HASH });
       if (url.endsWith("/eip712/cancel_order"))
         return reply({ orderHash: ORDER_HASH });
+      if (url.endsWith("/eip712/orders")) return reply(ORDERS);
       return Promise.resolve(new Response("{}", { status: 404 }));
     }
   );
@@ -82,6 +123,14 @@ function stubApi() {
 const transport = custom({
   request({ method }: { method: string }) {
     if (method === "eth_chainId") return Promise.resolve("0x1");
+    if (method === "eth_getBlockByNumber")
+      return Promise.resolve({
+        number: "0x10",
+        hash: `0x${"22".repeat(32)}`,
+        parentHash: `0x${"33".repeat(32)}`,
+        timestamp: "0x6b49d200",
+        transactions: [],
+      });
     if (method === "eth_call")
       return Promise.resolve(
         encodeAbiParameters(
@@ -237,6 +286,29 @@ describe("after the order was sent", () => {
       { network: NETWORK, transport }
     ).catch((e: unknown) => e);
     expect(error).toMatchObject({ code: "ORDER_OUTCOME_UNKNOWN" });
+  });
+});
+
+describe("listing orders", () => {
+  it("signs a query for the wallet's orders and reads fills with their block time", async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const orders = await listOrders(
+      account,
+      SETTLER,
+      { statuses: ["Active"], limit: 20 },
+      { network: NETWORK, transport }
+    );
+    expect(orders).toHaveLength(1);
+    expect(orders[0]).toMatchObject({
+      hash: ORDER_HASH,
+      status: "Active",
+      executedSellAmount: 400000000000000000n,
+    });
+    expect(orders[0]?.execution[0]?.clearedAt).toBeInstanceOf(Date);
+    const query = sent.find((s) => s.url.endsWith("/eip712/orders"))?.body as {
+      payload: { statuses: string[]; limit: number };
+    };
+    expect(query.payload).toMatchObject({ statuses: ["Active"], limit: 20 });
   });
 });
 

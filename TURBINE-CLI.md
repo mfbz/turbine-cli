@@ -76,7 +76,7 @@ Flags, the `--json` shape and acceptance checks are added to each command here w
 
 ### `turbine` (the interactive session)
 
-`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: get a quote, place an order, approve a token, supported tokens, show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
+`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: get a quote, place an order, my orders, cancel an order, approve a token, supported tokens, show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
 
 - Switching to mainnet asks for confirmation first; the header and every summary name the network.
 - An action that fails shows its error and returns to the menu; Ctrl-C or Esc at the menu quits.
@@ -234,15 +234,27 @@ Status: planned.
 
 ### `turbine orders [--status <list>] [--max <n>]`
 
-Lists open and recent orders.
+The wallet's orders, newest first: status, pair, how much has filled, time left. `--status` takes plain words (`active`, `filled`, `expired`, `cancelled`, `cancelling`, `invalid`, comma-separated); `--max` is 1 to 200 (default 20). Turbine only answers signed queries, so this unlocks the wallet (prompt, `--password-file` or `TURBINE_WALLET_PASSWORD`), but signs nothing that can move funds.
 
-Status: planned.
+`--json` data, one object per order: `{ "hash", "status", "sell": { "symbol", "address", "amount", "atomic" }, "buy": { "symbol", "address" }, "sold", "bought", "filledPercent", "limitPrice", "createdAt", "endsAt", "secondsLeft", "fills": [{ "txHash", "clearedAt", "sold", "bought", "price" }] }`. Fields Turbine doesn't return for an order are `null`.
+
+Status: done.
 
 ### `turbine order cancel <hash>`
 
-Cancels an open order.
+Cancels an open order with a signed request. Turbine applies it after the Speedbump (about 12 s); until then the order reads `cancelling`. `--dry-run` shows the exact request and needs no password; mainnet asks first (or needs `--yes` without a terminal). If the request was sent but its answer couldn't be read, the error is `CANCEL_OUTCOME_UNKNOWN`: check `turbine orders` before cancelling again.
 
-Status: planned.
+An order hash is the one place turbine-cli accepts 64 hexadecimal characters on the command line, and only in its `0x…` form after `order cancel` or `order watch`; anywhere else such a value is refused as a possible private key.
+
+`--json` data: `{ "dryRun": true, "hash", "sign": [{ "purpose": "cancel", "typedData" }] }` or `{ "dryRun": false, "hash", "status": "cancelling" }`.
+
+Status: done.
+
+Acceptance:
+
+- [x] Orders are read with a signed query through the SDK, fills with their time (`src/turbine/sdk-orders.test.ts`), and reported with exact amounts, filled share, limit and time left (`src/commands/orders.test.ts`).
+- [x] A cancel dry-runs without sending, sends once for real, and asks first on mainnet (`src/turbine/sdk-orders.test.ts`, `src/cli.test.ts`).
+- [x] An order hash after `order cancel` is accepted; a key-shaped value anywhere else is still refused (`src/cli.test.ts`).
 
 ### `turbine ladder <amount> <token> --for <token> --levels <n> --from <bps> --to <bps> --ttl <duration>`
 

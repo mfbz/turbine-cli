@@ -207,6 +207,16 @@ const CATALOGUE = {
     "Turbine's API names contracts other than the ones Turbine publishes for mainnet.",
     "turbine-cli won't sign for unknown contracts. Check docs.turbine.exchange and update turbine-cli."
   ),
+  STATUS_UNKNOWN: entry(
+    2,
+    "There is no order status {status}.",
+    "Use active, filled, expired, cancelled, cancelling or invalid, separated by commas."
+  ),
+  HASH_INVALID: entry(
+    2,
+    "That isn't an order hash.",
+    "An order hash is 0x followed by 64 hexadecimal characters; turbine orders lists yours."
+  ),
   TTL_TOO_LONG: entry(
     2,
     "An order can live 30 days at most.",

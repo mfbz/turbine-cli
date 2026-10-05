@@ -21,7 +21,13 @@ import type { TurbineApi } from "./turbine/api.ts";
 import { createHttpApi } from "./turbine/http.ts";
 import { createChain } from "./turbine/chain.ts";
 import type { Chain } from "./turbine/chain.ts";
-import type { submitCancel, submitOrder } from "./turbine/sdk-orders.ts";
+import type {
+  listOrders,
+  submitCancel,
+  submitOrder,
+} from "./turbine/sdk-orders.ts";
+import { orderReport, parseStatuses, renderOrders } from "./commands/orders.ts";
+import { cancelCommand, renderCancel } from "./commands/cancel.ts";
 import { approveCommand, renderApprove } from "./commands/approve.ts";
 import { placeCommand, renderPlaced, renderSummary } from "./commands/place.ts";
 import { unlockWallet } from "./wallet/signer.ts";
@@ -59,6 +65,7 @@ type Io = {
   chain?: (network: NetworkConfig) => Chain;
   // Test-only: placing and cancelling through the SDK.
   orders?: {
+    listOrders: typeof listOrders;
     submitOrder: typeof submitOrder;
     submitCancel: typeof submitCancel;
   };
@@ -93,6 +100,19 @@ const USAGE_CODES: Readonly<Record<string, ErrorCode>> = {
 // Anything shaped like a private key, anywhere in what was typed.
 const KEY_SHAPED = /(?:^|[^0-9a-fA-F])(?:0x)?[0-9a-fA-F]{64}(?![0-9a-fA-F])/;
 const OPTION_NAME = /'(--?[a-z][a-z0-9-]{0,30})/;
+
+// The one place a 64-hex value is expected: the order hash after `order cancel` or `order watch`, in
+// its 0x form. Everywhere else such a value is refused as a possible private key.
+const ORDER_HASH = /^0x[0-9a-fA-F]{64}$/;
+const HASH_COMMANDS = new Set(["cancel", "watch"]);
+
+function isOrderHash(argv: readonly string[], index: number): boolean {
+  if (!ORDER_HASH.test(argv[index] ?? "")) return false;
+  const order = argv.indexOf("order");
+  return (
+    order >= 0 && order + 1 < index && HASH_COMMANDS.has(argv[order + 1] ?? "")
+  );
+}
 
 function isCommanderError(error: unknown): error is { code: string } {
   const code: unknown =
@@ -231,6 +251,8 @@ function buildProgram(
   // The SDK loads only when a command signs: every other command starts fast without it, and runs from
   // source too (Node can't strip types inside node_modules, where the SDK keeps its TypeScript).
   const orders = io.orders ?? {
+    listOrders: async (...args: Parameters<typeof listOrders>) =>
+      (await import("./turbine/sdk-orders.ts")).listOrders(...args),
     submitOrder: async (...args: Parameters<typeof submitOrder>) =>
       (await import("./turbine/sdk-orders.ts")).submitOrder(...args),
     submitCancel: async (...args: Parameters<typeof submitCancel>) =>
@@ -309,6 +331,41 @@ function buildProgram(
       }
     );
     output.result(result, (theme) => renderApprove(result, theme));
+  };
+
+  const showOrders = async (filters: { status?: string; max?: string }) => {
+    const statuses = filters.status ? parseStatuses(filters.status) : undefined;
+    const max = filters.max === undefined ? 20 : Number(filters.max);
+    if (!Number.isInteger(max) || max < 1 || max > 200)
+      throw new CliError("USAGE_INVALID_VALUE", { option: "--max" });
+    const wallet = signingWallet();
+    const info = await api().info();
+    const { account } = await wallet.unlock();
+    if (account.address.toLowerCase() !== wallet.address.toLowerCase())
+      throw new CliError("WALLET_ADDRESS_MISMATCH");
+    const states = await orders.listOrders(
+      account,
+      info.settler,
+      { ...(statuses ? { statuses } : {}), limit: max },
+      { network: network() }
+    );
+    const reports = states.map((o) => orderReport(o, info.tokens, now()));
+    output.result(reports, (theme) => renderOrders(reports, theme));
+  };
+  const cancelOrder = async (hash: string) => {
+    const wallet = signingWallet();
+    const result = await cancelCommand(hash, {
+      network: network(),
+      wallet: { address: wallet.address },
+      settler: async () => (await api().info()).settler,
+      dryRun: options().dryRun === true,
+      yes: options().yes === true,
+      interactive: io.interactive,
+      confirm,
+      unlock: wallet.unlock,
+      submit: orders.submitCancel,
+    });
+    output.result(result, (theme) => renderCancel(result, theme));
   };
 
   const showTokens = async () => {
@@ -417,6 +474,13 @@ function buildProgram(
           hint: "once per token, an Ethereum transaction",
           run: async () => approve(await ask(prompter, "Which token?", "WETH")),
         },
+        { value: "orders", label: "My orders", run: () => showOrders({}) },
+        {
+          value: "cancel",
+          label: "Cancel an order",
+          run: async () =>
+            cancelOrder(await ask(prompter, "Order hash (0x…)", "")),
+        },
         { value: "tokens", label: "Supported tokens", run: showTokens },
         {
           value: "config",
@@ -513,9 +577,26 @@ function buildProgram(
     .option("--amount <amount>", "approve only this much (default: unlimited)")
     .action((token, opts) => approve(token, opts.amount));
 
+  program
+    .command("orders")
+    .description("the wallet's orders, newest first")
+    .option(
+      "--status <list>",
+      "only these: active, filled, expired, cancelled, cancelling, invalid"
+    )
+    .option("--max <n>", "at most this many (1–200, default 20)")
+    .action(showOrders);
+
   const order = program
     .command("order")
     .description("place, watch and cancel orders");
+  order
+    .command("cancel")
+    .description(
+      "cancel an order (Turbine applies it after the Speedbump, about 12 s)"
+    )
+    .argument("<hash>", "the order's hash, from turbine orders")
+    .action(cancelOrder);
   order
     .command("place")
     .description("place a spread order that tracks the mid price")
@@ -585,7 +666,7 @@ async function run(argv: string[], io: Io): Promise<number> {
   });
   // A key typed as an argument is already in the shell's history; refuse it before anything else
   // can echo it, and say what to do.
-  if (argv.some((arg) => KEY_SHAPED.test(arg)))
+  if (argv.some((arg, i) => KEY_SHAPED.test(arg) && !isOrderHash(argv, i)))
     return output.fail(new CliError("KEY_IN_ARGV"));
   const captured: Captured = { text: "" };
   try {
