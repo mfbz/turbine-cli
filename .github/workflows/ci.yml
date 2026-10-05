@@ -82,11 +82,16 @@ jobs:
     needs: [checks, pull-request, package]
     runs-on: ubuntu-latest
     steps:
-      # A skipped pull-request job (pushes, scheduled runs) is fine; a failed or cancelled one is not.
+      # Only a pass counts: success, or skipped (the pull-request job on pushes). Anything else fails
+      # the check, including results nobody listed, like a job that never got a runner ("abandoned").
       - env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "$RESULTS"
-          case " $RESULTS " in
-            *" failure "* | *" cancelled "*) exit 1 ;;
-          esac
+          [ -n "$RESULTS" ] || exit 1
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
