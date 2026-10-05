@@ -66,7 +66,7 @@ Output rules:
 - With `--json`, a command prints exactly one JSON document on stdout, errors included: `{ "ok": true, "data": … }` or `{ "ok": false, "error": { "code", "message", "hint"? } }`. Nothing else goes to stdout, and a failure still exits non-zero. Token amounts are strings, so no precision is lost.
 - Human output uses colour and motion only in an interactive terminal. It respects `NO_COLOR` and stays plain when piped. How it looks: [DESIGN.md](DESIGN.md).
 - Without `--json`, errors go to stderr, with a non-zero exit code.
-- Exit codes: `0` done, `1` failed, `2` usage error (an unknown command or flag, a bad value), `130` interrupted (Ctrl-C, including at a prompt).
+- Exit codes: `0` done, `1` failed, `2` usage error (an unknown command or flag, a bad value), `130` interrupted (Ctrl-C, including at a prompt; with `--json`, still one document, `INTERRUPTED`, whose hint says to check `turbine orders`: an interrupt can land after something was sent).
 - Error messages and hints come only from turbine-cli's catalogue (stable `code`s for agents to branch on, plus `retryable`). An unknown API error is `API_REJECTED`, with the API's code in `upstreamCode` only if it is a plain `SCREAMING_SNAKE` word. `--debug` adds the error's class and stack frames on stderr, never in the `--json` document and never values.
 - A private key typed as an argument is refused (`KEY_IN_ARGV`, exit 2) without being echoed. The key and the wallet password never appear in any output. Text from the Turbine API is stripped of control characters before it reaches a terminal.
 
@@ -206,11 +206,11 @@ Places one spread order: it sells `<amount>` of `<token>` for the `--for` token 
 
 Before anything is signed it checks the tokens, Turbine's $10 minimum, the lifetime and the limit, and, on Ethereum, the wallet's balance and Permit2 allowance (on mainnet a shortfall stops it; on the playground, where settlement is simulated, it is a warning). Then it shows what will be signed:
 
-1. **A Permit2 allowance**: _unlimited_ for the token sold, to Turbine's settler (on mainnet, pinned to Turbine's published address), until the order ends. Turbine asks for unlimited so the amount stays private.
+1. **A Permit2 allowance**: _unlimited_ for the token sold, to Turbine's settler (on mainnet, pinned to Turbine's published address; on the playground, a different settler is the `SETTLER_UNKNOWN` warning), until the order ends. Turbine asks for unlimited so the amount stays private.
 2. **The order itself**, signed as an EIP-712 request and sent to Turbine.
 
 - `--dry-run` runs Turbine's own SDK with an account that records these two payloads and signs nothing; it stops before anything is sent and needs no password. With `--json` the exact typed data is in `sign`.
-- Mainnet asks for a confirmation in a terminal, or needs `--yes` without one. So does a playground order when the wallet holds any of that token on Ethereum (approved or not yet), or when that can't be checked, because the playground's allowance signature is valid on Ethereum too until the order ends: use a fresh wallet for the playground.
+- Mainnet asks for a confirmation in a terminal, or needs `--yes` without one. So does a playground order when the wallet holds any of that token on Ethereum (approved or not yet), or when that can't be checked, or when the playground names a settler that isn't Turbine's, because the playground's allowance signature is valid on Ethereum too until the order ends: use a fresh wallet for the playground.
 - Then the wallet is unlocked (prompt, `--password-file` or `TURBINE_WALLET_PASSWORD`), its address is checked against the keystore's, and the order goes through the SDK.
 - If anything fails after the order itself was signed, it may have been placed: the error is `ORDER_OUTCOME_UNKNOWN`, never retryable, and says to check `turbine orders` before placing it again.
 

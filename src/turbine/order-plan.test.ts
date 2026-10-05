@@ -118,6 +118,24 @@ describe("planning an order", () => {
     );
   });
 
+  it("on the playground, flags a settler that isn't Turbine's: the allowance would be for it, on Ethereum", async () => {
+    const other = "0x000000000000000000000000000000000000dEaD";
+    const unknown = await planOrder(
+      { amount: "1", sell: "WETH", buy: "USDC", spreadBps: 50, ttl: "1h" },
+      {
+        api: createFakeApi({ settler: other }),
+        chain: NOTHING,
+        owner: OWNER,
+        network: "playground",
+        now: () => NOW,
+      }
+    );
+    expect(unknown.warnings).toContain("SETTLER_UNKNOWN");
+    expect((await plan({}, "playground", NOTHING)).warnings).not.toContain(
+      "SETTLER_UNKNOWN"
+    );
+  });
+
   it("caps an order's life at 30 days: its Permit2 allowance lives as long", async () => {
     await expect(plan({ ttl: "31d" })).rejects.toMatchObject({
       code: "TTL_TOO_LONG",

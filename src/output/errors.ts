@@ -150,6 +150,12 @@ const CATALOGUE = {
     "Run it in a terminal yourself; this step is never automated."
   ),
   CANCELLED: entry(130, "Cancelled.", "Nothing was changed."),
+  // Ctrl-C can land anywhere, after an order or a cancel was sent included.
+  INTERRUPTED: entry(
+    130,
+    "Interrupted.",
+    "If it was placing or cancelling, it may have gone through: check turbine orders before trying again."
+  ),
   AMOUNT_INVALID: entry(
     2,
     "{amount} isn't an amount: use a positive number such as 10 or 0.5.",
@@ -295,8 +301,7 @@ const CATALOGUE = {
   TRANSACTION_PENDING: entry(
     1,
     "The transaction {hash} was sent but isn't confirmed yet.",
-    "Check it on a block explorer; don't send it again until it's settled.",
-    true
+    "Check it on a block explorer; don't send it again until it's settled."
   ),
   CONFIRMATION_REQUIRED: entry(
     1,

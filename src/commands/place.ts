@@ -72,6 +72,8 @@ const WARNINGS: Record<Warning, string> = {
     "This wallet doesn't hold this amount on Ethereum. The playground may still simulate it; mainnet won't.",
   CHAIN_UNCHECKED:
     "Couldn't read the wallet's balance and allowance from Ethereum; the playground will tell.",
+  SETTLER_UNKNOWN:
+    "The playground names a settler that isn't Turbine's published one. The Permit2 allowance you sign is for that contract, and valid on Ethereum until the order ends.",
   REAL_FUNDS_EXPOSED:
     "This wallet holds real tokens of this kind on Ethereum, and the playground's Permit2 signature is valid there too until the order ends. Use a fresh wallet for the playground (turbine wallet new).",
 };
@@ -115,6 +117,13 @@ function summarise(plan: OrderPlan, wallet: PlaceDeps["wallet"]): OrderSummary {
   };
 }
 
+// Whose contract the allowance is for, in words that agree with the SETTLER_UNKNOWN warning.
+function settlerOf(s: Pick<OrderSummary, "warnings">): string {
+  return s.warnings.some((w) => w.code === "SETTLER_UNKNOWN")
+    ? "the playground's settler"
+    : "Turbine's settler";
+}
+
 function renderSummary(s: OrderSummary, theme: Theme): string {
   const buy = s.buy.symbol;
   const sell = s.sell.symbol;
@@ -151,7 +160,7 @@ function renderSummary(s: OrderSummary, theme: Theme): string {
     ),
     "",
     `  ${theme.bold("You sign")} two things:`,
-    `  ${theme.dim("1.")} a Permit2 allowance: ${theme.warning(`unlimited ${s.permit2.token}`)} for Turbine's settler ${s.permit2.spender}, until ${s.permit2.expiresAt}`,
+    `  ${theme.dim("1.")} a Permit2 allowance: ${theme.warning(`unlimited ${s.permit2.token}`)} for ${settlerOf(s)} ${s.permit2.spender}, until ${s.permit2.expiresAt}`,
     `  ${theme.dim("2.")} the order itself, sent to Turbine`,
     ...s.warnings.map((w) => `  ${theme.warning("▲")} ${w.message}`),
   ].join("\n");
@@ -178,7 +187,8 @@ async function confirmRealFunds(
   const realFunds =
     deps.network.name === "mainnet" ||
     plan.warnings.includes("REAL_FUNDS_EXPOSED") ||
-    plan.warnings.includes("CHAIN_UNCHECKED");
+    plan.warnings.includes("CHAIN_UNCHECKED") ||
+    plan.warnings.includes("SETTLER_UNKNOWN");
   if (!realFunds) return;
   if (deps.interactive) {
     const sure = await deps.confirm(
@@ -233,6 +243,7 @@ export {
   placeCommand,
   renderPlaced,
   renderSummary,
+  settlerOf,
   summarise,
   WARNINGS,
 };

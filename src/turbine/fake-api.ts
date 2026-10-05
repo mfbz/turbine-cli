@@ -31,7 +31,7 @@ const FAKE_TOKENS: Token[] = [
 const FAKE_PRICES: Prices = { WETH: 2500, USDC: 1, WBTC: 60_000 };
 
 function createFakeApi(
-  options: { tokens?: Token[]; prices?: Prices } = {}
+  options: { tokens?: Token[]; prices?: Prices; settler?: Hex } = {}
 ): TurbineApi {
   const tokens = options.tokens ?? FAKE_TOKENS;
   const prices = options.prices ?? FAKE_PRICES;
@@ -46,7 +46,9 @@ function createFakeApi(
   };
   const info: ProtocolInfo = {
     version: "fake",
-    settler: getAddress("0x5964336d54486f70b6a05b7825021427d99a0e16"),
+    settler: getAddress(
+      options.settler ?? "0x5964336d54486f70b6a05b7825021427d99a0e16"
+    ),
     lpRouter: getAddress("0xe5b67a998b73c5a5817f56c22b433c4642b7262a"),
     tokens,
     minTradeUsdc: 10_000_000n,

@@ -1,6 +1,8 @@
 // Everything about an order that can be checked and computed before anything is signed: amounts,
 // lifetime, spread, the price floor, Turbine's minimum trade, and (on Ethereum) the balance and the
 // Permit2 allowance. Nothing here signs or sends.
+import { getAddress } from "viem";
+
 import type { NetworkName } from "../config/network.ts";
 import { CliError } from "../output/errors.ts";
 import type { Hex } from "../wallet/signer.ts";
@@ -12,6 +14,7 @@ import {
 } from "./amounts.ts";
 import type { Quote, Token, TurbineApi } from "./api.ts";
 import type { ChainReader } from "./chain.ts";
+import { TURBINE_SETTLER } from "./http.ts";
 import { resolvePair } from "./tokens.ts";
 
 type OrderInput = {
@@ -30,7 +33,8 @@ type Warning =
   | "CHAIN_UNCHECKED"
   // Playground only: the wallet holds this token on Ethereum and Permit2 may move it. The playground's
   // Permit2 signature is a real one, valid on Ethereum too.
-  | "REAL_FUNDS_EXPOSED";
+  | "REAL_FUNDS_EXPOSED"
+  | "SETTLER_UNKNOWN";
 type OrderPlan = {
   network: NetworkName;
   owner: Hex;
@@ -166,6 +170,13 @@ async function planOrder(
 
   const warnings: Warning[] = [];
   let minBuyAmount = 1n;
+  // Mainnet's config is refused unless it names Turbine's settler (http.ts). The playground's isn't,
+  // yet its Permit2 allowance would be for that settler on Ethereum: an unknown one needs a yes.
+  if (
+    deps.network !== "mainnet" &&
+    getAddress(info.settler) !== TURBINE_SETTLER
+  )
+    warnings.push("SETTLER_UNKNOWN");
   if (input.limit === undefined) warnings.push("NO_LIMIT");
   else {
     minBuyAmount = floorFor(input.limit, sellAmount, sell, buy);

@@ -13,7 +13,7 @@ import type {
 } from "../turbine/sdk-orders.ts";
 import type { OrderPlan } from "../turbine/order-plan.ts";
 import type { Hex } from "../wallet/signer.ts";
-import { confirmRealFunds, summarise } from "./place.ts";
+import { confirmRealFunds, settlerOf, summarise } from "./place.ts";
 import type { OrderSummary, PlaceDeps } from "./place.ts";
 
 type Amount = { amount: string; atomic: string };
@@ -111,7 +111,7 @@ function renderLadderSummary(s: LadderSummary, theme: Theme): string {
     ),
     "",
     `  ${theme.bold(`You sign ${s.orders * 2} things`)}, two per order:`,
-    `  ${theme.dim("•")} a Permit2 allowance: ${theme.warning(`unlimited ${s.permit2.token}`)} for Turbine's settler ${s.permit2.spender}, until ${s.permit2.expiresAt}`,
+    `  ${theme.dim("•")} a Permit2 allowance: ${theme.warning(`unlimited ${s.permit2.token}`)} for ${settlerOf(s)} ${s.permit2.spender}, until ${s.permit2.expiresAt}`,
     `  ${theme.dim("•")} the order itself; all ${s.orders} go to Turbine in one batch`,
     ...s.warnings.map((w) => `  ${theme.warning("▲")} ${w.message}`),
   ].join("\n");
