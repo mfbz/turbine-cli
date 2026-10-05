@@ -305,14 +305,19 @@ A wallet or password file that others can read is refused, with the command that
 
 ## Agent skill
 
-`skills/turbine/SKILL.md` teaches a coding agent (Claude Code or any agent that reads skills) to use turbine-cli through `--json`: quote first, always `--dry-run` and ask the human to confirm before any `place`, `ladder` or `cancel`, and stay on the playground unless told otherwise.
+`skills/turbine/SKILL.md` teaches a coding agent (Claude Code, or any agent that reads Agent Skills) to use turbine-cli through `--json`: quote first, always `--dry-run`, show the person the summary and ask before any `place`, `ladder`, `cancel` or `approve`, never handle keys or passwords, stay on the playground unless told otherwise, and branch on `error.code` and `retryable` (an `ORDER_OUTCOME_UNKNOWN` means checking `turbine orders`, never placing again). It ships in the npm package; copy the `skills/turbine` folder into your agent's skills folder (for Claude Code, `~/.claude/skills/` or a project's `.claude/skills/`).
 
-Status: planned.
+Status: done.
+
+Acceptance:
+
+- [x] The skill is a valid Agent Skill and ships in the package (`tools/checks/agents-repo.test.ts`).
+- [x] Every error code, warning, environment variable and flag it names exists in turbine-cli (`tools/checks/agents-repo.test.ts`).
 
 ## Not in scope
 
 - A web interface (Turbine's own app is the web interface).
-- Custody, key generation or key storage beyond reading one key.
+- Custody: wallets stay encrypted on your computer, and turbine-cli never sends a key anywhere.
 - Strategies or bots that trade on their own without a human approving what is signed.
 
 ## Credits

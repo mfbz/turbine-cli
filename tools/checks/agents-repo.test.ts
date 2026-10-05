@@ -3,6 +3,8 @@ import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import pkg from "../../package.json" with { type: "json" };
+import { WARNINGS } from "../../src/commands/place.ts";
+import { CATALOGUE } from "../../src/output/errors.ts";
 import { readRepoFile, repoPath } from "./repo.ts";
 import { validateSkill } from "./skills.ts";
 
@@ -55,5 +57,41 @@ describe("skills", () => {
     expect(realpathSync(repoPath(".claude", "skills"))).toBe(
       realpathSync(repoPath(".agents", "skills"))
     );
+  });
+});
+
+// The skill users give their own agents: it ships with the package, and every error code and flag it
+// names has to exist, or an agent would branch on something turbine-cli never says.
+describe("the turbine skill", () => {
+  const skill = () => readRepoFile("skills", "turbine", "SKILL.md");
+
+  it("is a valid Agent Skill", () => {
+    expect(validateSkill("turbine", skill())).toEqual([]);
+  });
+
+  it("ships in the npm package", () => {
+    expect(pkg.files).toContain("skills/");
+  });
+
+  it("names only error codes, warnings and environment variables turbine-cli has", () => {
+    const env = readRepoFile("src", "config", "env.ts");
+    const named = [...skill().matchAll(/`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)`/g)]
+      .map((match) => match[1] ?? "")
+      .filter(
+        (code) =>
+          !(code in CATALOGUE) &&
+          !(code in WARNINGS) &&
+          // Environment variables are names too: they must be ones turbine-cli reads.
+          !(code.startsWith("TURBINE_") && new RegExp(`\\b${code}:`).test(env))
+      );
+    expect(named).toEqual([]);
+  });
+
+  it("names only flags turbine-cli has", () => {
+    const cli = readRepoFile("src", "cli.ts");
+    const named = [...skill().matchAll(/(?<![\w-])--([a-z][a-z-]*)/g)]
+      .map((match) => match[1] ?? "")
+      .filter((flag) => !cli.includes(`--${flag}`));
+    expect(named).toEqual([]);
   });
 });

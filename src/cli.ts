@@ -784,9 +784,9 @@ function buildProgram(
     .requiredOption("--levels <n>", "how many orders, 2 to 20")
     .requiredOption(
       "--from <bps>",
-      "the tightest spread, e.g. -10 (better than mid)"
+      "the first level's spread, e.g. -10 (better than mid)"
     )
-    .requiredOption("--to <bps>", "the widest spread, e.g. 30")
+    .requiredOption("--to <bps>", "the last level's spread, e.g. 30")
     .requiredOption("--ttl <duration>", "how long they live, e.g. 4h")
     .option(
       "--limit <price>",

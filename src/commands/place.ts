@@ -234,5 +234,6 @@ export {
   renderPlaced,
   renderSummary,
   summarise,
+  WARNINGS,
 };
 export type { OrderSummary, PlaceDeps, PlaceResult };
