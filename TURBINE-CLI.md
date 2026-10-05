@@ -292,14 +292,14 @@ Status: planned.
 
 turbine-cli reads its settings from the environment you set up, and nowhere else. It deliberately doesn't read a `.env` from the current folder: a cloned repo or a download could then choose the wallet, the password or the endpoints. If you keep settings in a file you trust, load it into your shell yourself (`set -a; . ./my-settings; set +a`). `.env.example` lists every setting. An empty value means unset.
 
-| Variable                  | Meaning                                                                                                   |
-| ------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `TURBINE_NETWORK`         | `playground` (default). `mainnet` here alone is refused: mainnet needs `--network mainnet` on the command |
-| `TURBINE_ACCOUNT`         | the wallet to use, by name (default `default`); `--account` wins                                          |
-| `TURBINE_WALLET_PASSWORD` | the wallet password, for scripts and agents. `--password-file` is better                                  |
-| `TURBINE_API_URL`         | a mock of the Turbine API on this computer only (`localhost`, `127.0.0.1`, `[::1]`), never on mainnet     |
-| `TURBINE_RPC_URL`         | your own Ethereum RPC endpoint                                                                            |
-| `TURBINE_NO_MOTION`       | `1` turns animation off, like `--no-motion`                                                               |
+| Variable                  | Meaning                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `TURBINE_NETWORK`         | `playground` (default). `mainnet` here alone is refused: mainnet needs `--network mainnet` on the command                      |
+| `TURBINE_ACCOUNT`         | the wallet to use, by name (default `default`); `--account` wins                                                               |
+| `TURBINE_WALLET_PASSWORD` | the wallet password, for scripts and agents. `--password-file` is better                                                       |
+| `TURBINE_API_URL`         | a mock of the Turbine API on this computer only (`localhost`, `127.0.0.1`, `[::1]`), never on mainnet; `npm run mock` runs one |
+| `TURBINE_RPC_URL`         | your own Ethereum RPC endpoint                                                                                                 |
+| `TURBINE_NO_MOTION`       | `1` turns animation off, like `--no-motion`                                                                                    |
 
 A wallet or password file that others can read is refused, with the command that fixes it (`chmod 600 <file>`). An API override pointing anywhere else is refused, because the API decides which contracts your wallet signs Permit2 allowances for.
 
