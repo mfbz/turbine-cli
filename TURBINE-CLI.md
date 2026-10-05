@@ -76,7 +76,7 @@ Flags, the `--json` shape and acceptance checks are added to each command here w
 
 ### `turbine` (the interactive session)
 
-`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: get a quote, place an order, my orders, watch an order, cancel an order, approve a token, supported tokens, show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
+`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: get a quote, place an order, build a ladder, my orders, watch an order, cancel an order, approve a token, supported tokens, show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
 
 - Switching to mainnet asks for confirmation first; the header and every summary name the network.
 - An action that fails shows its error and returns to the menu; Ctrl-C or Esc at the menu quits.
@@ -266,11 +266,21 @@ Acceptance:
 - [x] A cancel dry-runs without sending, sends once for real, and asks first on mainnet (`src/turbine/sdk-orders.test.ts`, `src/cli.test.ts`).
 - [x] An order hash after `order cancel` is accepted; a key-shaped value anywhere else is still refused (`src/cli.test.ts`).
 
-### `turbine ladder <amount> <token> --for <token> --levels <n> --from <bps> --to <bps> --ttl <duration>`
+### `turbine ladder <amount> <token> --for <token> --levels <n> --from <bps> --to <bps> --ttl <duration> [--limit <price>]`
 
-Splits an amount into several orders at evenly spaced spreads (price levels), the way a market maker quotes.
+Splits `<amount>` into `--levels` orders (2 to 20) at evenly spaced spreads from `--from` to `--to` basis points, the way a market maker quotes: `--from -10 --to 30 --levels 5` places orders at -10, 0, 10, 20 and 30 bps. The amount is split evenly, the rounding remainder going to the last level, so the ladder sells exactly what you asked. `--limit` applies one price floor to every level.
 
-Status: planned.
+It runs the same checks as `turbine order place` once for the whole amount, then makes sure each level on its own clears Turbine's minimum trade. The summary lists every level; each signs its own Permit2 allowance and order, and all are sent as **one signed batch**. `--dry-run` shows every level's exact typed data; mainnet, or a playground wallet with real tokens exposed, asks first. A failure after signing is `ORDER_OUTCOME_UNKNOWN` for the whole ladder: check `turbine orders`.
+
+`--json` data: `{ "dryRun": true, "ladder": {…}, "sign": [[…], …] }` or `{ "dryRun": false, "ladder": {…}, "hashes": ["0x…", …] }`, where `ladder` is the order summary of `turbine order place` plus `orders` and `levels: [{ "spreadBps", "sell", "atSpreadNow", "minBuy" }]`.
+
+Status: done.
+
+Acceptance:
+
+- [x] Spreads are evenly spaced, the amount split exactly with the remainder last, each level held to the minimum, and a limit sized to each level (`src/turbine/ladder.test.ts`).
+- [x] A dry run captures every level's signatures through the real SDK and sends nothing; a real ladder goes as one batch (`src/turbine/sdk-orders.test.ts`, `src/cli.test.ts`).
+- [x] Mainnet asks first (`src/cli.test.ts`).
 
 ### `turbine lp add|remove|status`
 
