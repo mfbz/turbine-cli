@@ -19,7 +19,8 @@ type ConfigDocument = {
 async function capture(
   argv: string[],
   env: Record<string, string> = {},
-  tty = false
+  tty = false,
+  keyFileText?: string
 ) {
   let out = "";
   let err = "";
@@ -33,7 +34,8 @@ async function capture(
       : { isTTY: false },
     keyFs: {
       readFile: () => {
-        throw new Error("no files in tests");
+        if (keyFileText === undefined) throw new Error("no files in tests");
+        return keyFileText;
       },
       mode: () => 0o100600,
       platform: "darwin",
@@ -155,5 +157,61 @@ describe("turbine config", () => {
   it("writes no colour codes when piped, and some in a colour terminal", async () => {
     expect((await capture(["config"])).out).not.toMatch(ANSI);
     expect((await capture(["config"], {}, true)).out).toMatch(ANSI);
+  });
+});
+
+describe("a key pasted on the command line by mistake", () => {
+  it("is never printed back, wherever the configured key comes from", async () => {
+    const key = generatePrivateKey();
+    for (const argv of [
+      ["config", "--network", key],
+      [key],
+      ["config", `--bogus=${key}`],
+      ["config", key],
+      ["--json", "config", "--network", key],
+    ]) {
+      const { code, out, err } = await capture(
+        argv,
+        { TURBINE_KEY_FILE: "/k" },
+        false,
+        key
+      );
+      expect(code, argv.join(" ")).toBe(2);
+      expect((out + err).toLowerCase(), argv.join(" ")).not.toContain(
+        key.slice(2)
+      );
+    }
+  });
+
+  it("is not echoed even when no key is configured", async () => {
+    const key = generatePrivateKey();
+    const { out, err } = await capture(["config", "--network", key]);
+    expect((out + err).toLowerCase()).not.toContain(key.slice(2));
+  });
+});
+
+describe("--json everywhere", () => {
+  it("returns the version, help and the bare command as one document", async () => {
+    const version = await capture(["--json", "--version"]);
+    expect(JSON.parse(version.out)).toEqual({
+      ok: true,
+      data: { version: pkg.version },
+    });
+    for (const argv of [["--json", "--help"], ["--json"]]) {
+      const { code, out } = await capture(argv);
+      expect(code, argv.join(" ")).toBe(0);
+      const doc = JSON.parse(out) as { ok: boolean; data: { help: string } };
+      expect(doc.ok).toBe(true);
+      expect(doc.data.help).toContain("Usage");
+    }
+  });
+
+  it("stays valid JSON when TURBINE_PRIVATE_KEY holds something that isn't a key", async () => {
+    for (const value of ["o", '"', "ok"]) {
+      const { out } = await capture(["config", "--json"], {
+        TURBINE_PRIVATE_KEY: value,
+      });
+      expect(() => JSON.parse(out) as unknown, value).not.toThrow();
+    }
   });
 });

@@ -92,6 +92,16 @@ describe("loadKey", () => {
     );
   });
 
+  it("rejects a value outside the curve as invalid, without leaking it in any form", () => {
+    for (const value of ["0".repeat(64), "f".repeat(63) + "0"]) {
+      const error = thrown(() => loadKey({ privateKey: value }, fakeFs({})));
+      expect(error.code).toBe("KEY_INVALID");
+      expect(`${error.message} ${error.hint ?? ""}`).not.toMatch(
+        /\d{20}|f{20}/
+      );
+    }
+  });
+
   it("names an unreadable key file", () => {
     const error = thrown(() => loadKey({ keyFile: "/missing" }, fakeFs({})));
     expect(error.code).toBe("KEY_FILE_UNREADABLE");

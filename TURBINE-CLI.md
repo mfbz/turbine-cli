@@ -162,7 +162,7 @@ turbine-cli reads its settings from the environment, and from a `.env` file in t
 | `TURBINE_NETWORK`     | `playground` (default). `mainnet` here alone is refused: mainnet needs `--network mainnet` on the command |
 | `TURBINE_PRIVATE_KEY` | the signing key of a dedicated wallet, with or without `0x`                                               |
 | `TURBINE_KEY_FILE`    | path to a file holding the key instead; it must be owner-only (600). Set one of the two, not both         |
-| `TURBINE_API_URL`     | a mock of the Turbine API on this computer only (`localhost`, `127.0.0.1`), never on mainnet              |
+| `TURBINE_API_URL`     | a mock of the Turbine API on this computer only (`localhost`, `127.0.0.1`, `[::1]`), never on mainnet     |
 | `TURBINE_RPC_URL`     | your own Ethereum RPC endpoint                                                                            |
 | `TURBINE_NO_MOTION`   | `1` turns animation off, like `--no-motion`                                                               |
 

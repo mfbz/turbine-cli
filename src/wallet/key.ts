@@ -43,6 +43,25 @@ function parseKey(text: string, source: KeySource): Hex {
   return `0x${match[1].toLowerCase()}`;
 }
 
+function addressOf(privateKey: Hex, source: KeySource): Hex {
+  try {
+    return privateKeyToAccount(privateKey).address;
+  } catch (error) {
+    // 64 hex digits outside the curve's range. The library's message quotes the value in decimal,
+    // which the hex redaction wouldn't catch, so it is replaced, not passed on.
+    throw new CliError(
+      "KEY_INVALID",
+      source === "env"
+        ? "TURBINE_PRIVATE_KEY isn't a valid Ethereum private key."
+        : "The key file doesn't hold a valid Ethereum private key.",
+      {
+        hint: "Check you copied the whole key, from the wallet you mean to use.",
+        cause: error,
+      }
+    );
+  }
+}
+
 function readKeyFile(path: string, fs: KeyFs): string {
   let mode: number;
   let text: string;
@@ -89,11 +108,7 @@ function loadKey(env: Env, fs: KeyFs = realKeyFs): LoadedKey | undefined {
   } else {
     return undefined;
   }
-  return {
-    privateKey,
-    address: privateKeyToAccount(privateKey).address,
-    source,
-  };
+  return { privateKey, address: addressOf(privateKey, source), source };
 }
 
 export { loadKey, realKeyFs };

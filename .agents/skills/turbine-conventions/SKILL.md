@@ -33,7 +33,7 @@ description: Use when writing or reviewing code in the turbine-cli repo. Covers 
 
 ## Output
 
-- `--json`: exactly one JSON document on stdout, errors included (`{ "error": { "code", "message" } }`); nothing else on stdout, and a non-zero exit code on failure.
+- `--json`: exactly one JSON document on stdout, errors included (`{ "ok": true, "data": … }` or `{ "ok": false, "error": { "code", "message", "hint" } }`); nothing else on stdout, and a non-zero exit code on failure.
 - Human output: colour and motion only when stdout is a TTY and `NO_COLOR` is unset; plain otherwise.
 - Without `--json`, errors go to stderr, with a non-zero exit code (2 for usage errors).
 

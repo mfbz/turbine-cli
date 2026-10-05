@@ -36,7 +36,7 @@ npm run cli -- --help     # run the CLI from source
 - **Playground is the default.** Mainnet only with an explicit `--network mainnet` and a confirmation that shows amount, tokens, spread, limit and lifetime.
 - **`--dry-run` everywhere**: every command that signs or sends can show exactly what it would sign and send instead.
 - **Never sign silently.** Keys come from `TURBINE_PRIVATE_KEY` or an owner-only `TURBINE_KEY_FILE`; they are never logged, printed, written or committed, and are redacted from every output, errors and `--json` included.
-- Output: `--json` prints exactly one JSON document on stdout, errors included (`{ "error": … }`), with a non-zero exit code on failure. Without `--json`, errors go to stderr. Human output respects `NO_COLOR` and non-TTY.
+- Output: `--json` prints exactly one JSON document on stdout, errors included (`{ "ok": true, "data": … }` or `{ "ok": false, "error": { "code", "message", "hint" } }`), with a non-zero exit code on failure. Without `--json`, errors go to stderr. Human output respects `NO_COLOR` and non-TTY.
 - The user-facing agent skill always quotes first, dry-runs, and asks a human before `place`, `ladder` or `cancel`.
 - turbine-cli is a standalone product. Write it that way everywhere (code, docs, commits, PRs, issues): no personal context, no backstory, and always "unofficial, not affiliated with Turbine or PropellerHeads".
 - KISS. No secrets in the repo, ever, not even well-known development keys: tests generate keys at run time.

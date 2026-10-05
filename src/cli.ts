@@ -4,7 +4,7 @@ import pkg from "../package.json" with { type: "json" };
 import { configReport, renderConfig } from "./commands/config.ts";
 import { loadEnv } from "./config/env.ts";
 import { resolveNetwork } from "./config/network.ts";
-import { CliError } from "./output/errors.ts";
+import { CliError, maskKeys } from "./output/errors.ts";
 import { createOutput } from "./output/output.ts";
 import type { Output, Writer } from "./output/output.ts";
 import { detectTerminal } from "./output/terminal.ts";
@@ -30,7 +30,15 @@ const CLEAN_EXITS = new Set([
   "commander.help",
 ]);
 
-function buildProgram(io: Io, output: Output, secrets: string[]) {
+// Help and version text commander would print; with --json it becomes the data of one document.
+type Captured = { text: string };
+
+function buildProgram(
+  io: Io,
+  output: Output,
+  secrets: string[],
+  captured: Captured
+) {
   const program = new Command("turbine")
     .description(
       "An unofficial command line for Turbine, the private orderbook on Ethereum."
@@ -52,20 +60,24 @@ function buildProgram(io: Io, output: Output, secrets: string[]) {
     .argument("[command]")
     .exitOverride()
     .configureOutput({
-      writeOut: io.stdout,
+      writeOut: (text) => {
+        if (output.json) captured.text += text;
+        else io.stdout(text);
+      },
       // Usage errors are reported by output.fail, in the right format for --json or a person.
       writeErr: () => {},
       outputError: () => {},
     })
     .action((command) => {
       if (command !== undefined) {
-        throw new CliError("USAGE", `Unknown command "${command}".`, {
+        throw new CliError("USAGE", `Unknown command "${maskKeys(command)}".`, {
           hint: "See turbine --help.",
           exitCode: 2,
         });
       }
       // No command: the interactive session will open here; until then, help.
-      io.stdout(program.helpInformation());
+      const help = program.helpInformation();
+      output.result({ help }, () => help.trimEnd());
     });
 
   program
@@ -84,8 +96,18 @@ function buildProgram(io: Io, output: Output, secrets: string[]) {
   return program;
 }
 
+// By code, not by class: a subcommand's error may come from another copy of commander's classes.
+function isCommanderError(error: unknown): error is CommanderError {
+  const code: unknown =
+    typeof error === "object" && error !== null
+      ? (error as { code?: unknown }).code
+      : undefined;
+  return typeof code === "string" && code.startsWith("commander.");
+}
+
 function usageError(error: CommanderError): CliError {
-  const message = error.message.replace(/^error: /, "");
+  // Commander quotes what was typed; mask anything key-shaped first.
+  const message = maskKeys(error.message.replace(/^error: /, ""));
   return new CliError(
     "USAGE",
     `${message.charAt(0).toUpperCase()}${message.slice(1)}`,
@@ -103,9 +125,10 @@ async function run(argv: string[], io: Io): Promise<number> {
   const terminal = detectTerminal(io.stdoutInfo, io.env, {
     motion: !argv.includes("--no-motion"),
   });
-  // The raw variable is redacted from the start, before it is even validated.
-  const raw = io.env.TURBINE_PRIVATE_KEY?.trim();
-  const secrets: string[] = raw ? [raw] : [];
+  // The raw variable is redacted from the start, before it is even validated, but only when it looks
+  // like a key: redacting "o" or a quote everywhere would garble every output.
+  const raw = io.env.TURBINE_PRIVATE_KEY?.trim() ?? "";
+  const secrets: string[] = /^(?:0x)?[0-9a-fA-F]{64}$/.test(raw) ? [raw] : [];
   const output = createOutput({
     json,
     debug,
@@ -114,12 +137,24 @@ async function run(argv: string[], io: Io): Promise<number> {
     stderr: io.stderr,
     secrets: () => secrets,
   });
+  const captured: Captured = { text: "" };
   try {
-    await buildProgram(io, output, secrets).parseAsync(argv, { from: "user" });
+    await buildProgram(io, output, secrets, captured).parseAsync(argv, {
+      from: "user",
+    });
     return 0;
   } catch (error) {
-    if (error instanceof CommanderError) {
-      if (CLEAN_EXITS.has(error.code)) return 0;
+    if (isCommanderError(error)) {
+      if (CLEAN_EXITS.has(error.code)) {
+        if (json) {
+          const data =
+            error.code === "commander.version"
+              ? { version: pkg.version }
+              : { help: captured.text };
+          output.result(data, () => "");
+        }
+        return 0;
+      }
       return output.fail(usageError(error));
     }
     return output.fail(error);

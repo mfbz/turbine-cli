@@ -22,6 +22,14 @@ const TURBINE_HINTS: Readonly<Record<string, ErrorReport>> = {
   },
 };
 
+// Anything shaped like a private key. Usage errors quote what was typed, and someone may have pasted
+// a key into the wrong place; nothing a usage error needs to show is 64 hex digits long.
+const KEY_SHAPED = /(?:0x)?[0-9a-fA-F]{64}/g;
+
+function maskKeys(text: string): string {
+  return text.replace(KEY_SHAPED, "[redacted]");
+}
+
 class CliError extends Error {
   readonly code: string;
   readonly hint: string | undefined;
@@ -80,5 +88,5 @@ function toErrorReport(error: unknown, debug: boolean): FullReport {
   return report;
 }
 
-export { CliError, toErrorReport };
+export { CliError, maskKeys, toErrorReport };
 export type { ErrorReport, ExitCode };

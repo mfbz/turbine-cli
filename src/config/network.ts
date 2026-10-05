@@ -1,4 +1,4 @@
-import { CliError } from "../output/errors.ts";
+import { CliError, maskKeys } from "../output/errors.ts";
 import type { Env } from "./env.ts";
 
 type NetworkName = "playground" | "mainnet";
@@ -26,7 +26,7 @@ function pickName(flag: string | undefined, env: Env): NetworkName {
     if (!isNetwork(flag)) {
       throw new CliError(
         "USAGE",
-        `Unknown network "${flag}": use playground or mainnet.`,
+        `Unknown network "${maskKeys(flag)}": use playground or mainnet.`,
         { exitCode: 2 }
       );
     }
