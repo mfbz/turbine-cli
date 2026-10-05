@@ -40,12 +40,24 @@ function variableFor(field: PropertyKey | undefined): string {
   return entry?.[0] ?? String(field);
 }
 
+// Where turbine-cli talks to. A .env travels with whatever folder you run turbine in (a cloned repo,
+// a download), so these only come from the environment you set up yourself.
+const ENDPOINTS = ["TURBINE_API_URL", "TURBINE_RPC_URL"] as const;
+
 function readEnv(source: Source, dotenvText?: string): Env {
+  const dotenv: Source = dotenvText ? parseEnv(dotenvText) : {};
+  const endpoint = ENDPOINTS.find((name) => dotenv[name]?.trim());
+  if (endpoint) {
+    throw new CliError(
+      "ENDPOINT_IN_DOTENV",
+      `${endpoint} is set in .env, where turbine-cli doesn't accept it.`,
+      {
+        hint: `Remove it from .env and set it in your shell instead (export ${endpoint}=…).`,
+      }
+    );
+  }
   // The real environment wins over .env, like most tools that read one.
-  const merged: Source = {
-    ...(dotenvText ? parseEnv(dotenvText) : {}),
-    ...source,
-  };
+  const merged: Source = { ...dotenv, ...source };
   const raw: Record<string, string> = {};
   for (const [variable, field] of Object.entries(VARIABLES)) {
     const value = merged[variable]?.trim();

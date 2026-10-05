@@ -28,6 +28,14 @@ describe("turbine config", () => {
     expect(JSON.stringify(report)).not.toContain(privateKey.slice(2));
   });
 
+  it("can't drive the terminal from a configured URL", () => {
+    const report = configReport(
+      { ...PLAYGROUND, rpcUrl: "https://rpc.example.com/\u001b]0;x\u0007" },
+      undefined
+    );
+    expect(renderConfig(report, createTheme(0))).not.toMatch(/[\u001b\u0007]/);
+  });
+
   it("says plainly whether funds are real", () => {
     const theme = createTheme(0);
     expect(renderConfig(configReport(PLAYGROUND, undefined), theme)).toContain(

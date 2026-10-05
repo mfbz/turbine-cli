@@ -83,6 +83,27 @@ describe("readEnv", () => {
   });
 });
 
+describe("endpoints in .env", () => {
+  it("are refused, since a .env can come with any folder you run turbine in", () => {
+    for (const line of [
+      "TURBINE_RPC_URL=https://rpc.evil.example",
+      "TURBINE_API_URL=http://localhost:3000/api",
+    ]) {
+      const error = thrown(() => readEnv({}, `${line}\n`));
+      expect(error.code, line).toBe("ENDPOINT_IN_DOTENV");
+      expect(error.hint).toMatch(/shell/i);
+    }
+  });
+
+  it("are accepted from the real environment", () => {
+    expect(readEnv({ TURBINE_RPC_URL: "https://rpc.example.com" }, "")).toEqual(
+      {
+        rpcUrl: "https://rpc.example.com",
+      }
+    );
+  });
+});
+
 describe("loadEnv", () => {
   it("reads .env from the folder it runs in", () => {
     const cwd = mkdtempSync(join(tmpdir(), "turbine-env-"));

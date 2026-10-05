@@ -1,4 +1,5 @@
 import type { NetworkConfig, NetworkName } from "../config/network.ts";
+import { plain } from "../output/output.ts";
 import type { Theme } from "../output/theme.ts";
 import type { KeySource, LoadedKey } from "../wallet/key.ts";
 
@@ -36,8 +37,9 @@ function renderConfig(report: ConfigReport, theme: Theme): string {
     : theme.dim("no wallet: set TURBINE_PRIVATE_KEY or TURBINE_KEY_FILE");
   const rows: Array<[string, string]> = [
     ["network", network],
-    ["api", report.apiUrl],
-    ["rpc", report.rpcUrl ?? theme.dim("default")],
+    // Configured values can come from files the user didn't write; never let them drive the terminal.
+    ["api", plain(report.apiUrl)],
+    ["rpc", report.rpcUrl ? plain(report.rpcUrl) : theme.dim("default")],
     ["wallet", wallet],
   ];
   return rows
