@@ -29,6 +29,9 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      # Every dependency, development ones too: the Turbine SDK is one, and its code ships in the bundle.
+      # Low-severity advisories with no fix (elliptic, via the SDK) don't fail the build.
+      - run: npm audit --audit-level=moderate
       # Advisories in runtime dependencies fail a pull request that changes dependencies (so none can
       # bring one in) and only warn otherwise (an advisory nobody can fix yet mustn't block every change).
       - name: Audit runtime dependencies

@@ -30,6 +30,11 @@ describe("the CI workflow", () => {
     );
   });
 
+  it("audits every dependency, development ones included: the SDK is one, and it ships in the bundle", () => {
+    const runs = (ci.jobs.checks?.steps ?? []).map((step) => step.run ?? "");
+    expect(runs).toContain("npm audit --audit-level=moderate");
+  });
+
   // The script is bash, as on GitHub's runners; Windows machines may have none.
   it.skipIf(process.platform === "win32")(
     "passes the required check only when every job passed or was skipped",
