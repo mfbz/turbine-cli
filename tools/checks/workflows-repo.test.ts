@@ -31,8 +31,11 @@ describe("the CI workflow", () => {
   });
 
   it("audits every dependency, development ones included: the SDK is one, and it ships in the bundle", () => {
-    const runs = (ci.jobs.checks?.steps ?? []).map((step) => step.run ?? "");
-    expect(runs).toContain("npm audit --audit-level=moderate");
+    const audit =
+      ci.jobs.checks?.steps?.find((step) => step.name === "Audit dependencies")
+        ?.run ?? "";
+    expect(audit).toContain("npm audit --audit-level=moderate");
+    expect(audit).not.toContain("--omit=dev");
   });
 
   // The script is bash, as on GitHub's runners; Windows machines may have none.
