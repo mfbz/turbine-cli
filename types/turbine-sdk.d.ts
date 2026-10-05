@@ -79,6 +79,7 @@ declare module "turbine-sdk" {
       options?: { turbineApiUrl?: string; authMethod?: AuthMethod }
     ): Promise<TurbineClient>;
     addOrder(intent: OrderIntent): Promise<string>;
+    addOrders(intents: OrderIntent[]): Promise<string[]>;
     cancelOrder(orderHash: Hex): Promise<{ orderHash: string }>;
     getOrders(options?: GetOrdersOptions): Promise<GetOrdersResponse>;
     getConfig(): TurbineConfig;

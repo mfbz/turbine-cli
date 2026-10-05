@@ -16,6 +16,7 @@ import {
   openOrderReader,
   submitCancel,
   submitOrder,
+  submitOrders,
 } from "./sdk-orders.ts";
 
 const API = "https://playground-api.turbine.exchange/api";
@@ -119,6 +120,8 @@ function stubApi() {
       if (url.endsWith("/eip712/cancel_order"))
         return reply({ orderHash: ORDER_HASH });
       if (url.endsWith("/eip712/orders")) return reply(ORDERS);
+      if (url.endsWith("/eip712/add_orders"))
+        return reply([{ orderHash: ORDER_HASH }, { orderHash: ORDER_HASH }]);
       return Promise.resolve(new Response("{}", { status: 404 }));
     }
   );
@@ -314,6 +317,51 @@ describe("listing orders", () => {
       payload: { statuses: string[]; limit: number };
     };
     expect(query.payload).toMatchObject({ statuses: ["Active"], limit: 20 });
+  });
+});
+
+describe("a ladder through the real SDK", () => {
+  it("dry-runs each level's two signatures and sends nothing", async () => {
+    const owner = privateKeyToAccount(generatePrivateKey()).address;
+    const p = await plan(owner);
+    const result = await submitOrders(
+      [p, p],
+      { kind: "dry-run", address: owner },
+      { network: NETWORK, transport }
+    );
+    expect(result.kind).toBe("dry-run");
+    if (result.kind === "dry-run")
+      expect(result.sign.map((level) => level.map((s) => s.purpose))).toEqual([
+        ["permit2-allowance", "order"],
+        ["permit2-allowance", "order"],
+      ]);
+    expect(sent).toEqual([]);
+  });
+
+  it("sends every level in one signed batch and returns their hashes", async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const p = await plan(account.address);
+    const result = await submitOrders(
+      [p, p],
+      { kind: "account", account },
+      { network: NETWORK, transport }
+    );
+    expect(result).toEqual({ kind: "sent", hashes: [ORDER_HASH, ORDER_HASH] });
+    expect(sent.map((s) => s.url)).toEqual([`${API}/eip712/add_orders`]);
+    expect(sent[0]?.body).toHaveLength(2);
+  });
+});
+
+describe("a batch Turbine only partly confirms", () => {
+  it("reads as an unknown outcome, never as success", async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const p = await plan(account.address);
+    const result = await submitOrders(
+      [p, p, p],
+      { kind: "account", account },
+      { network: NETWORK, transport }
+    ).catch((e: unknown) => e);
+    expect(result).toMatchObject({ code: "ORDER_OUTCOME_UNKNOWN" });
   });
 });
 

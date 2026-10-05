@@ -47,6 +47,8 @@ type OrderPlan = {
   atMid: bigint;
   atSpread: bigint;
   settler: Hex;
+  // The trade's value in USDC atomic units at today's mid, when USDC is listed.
+  usdcValue: bigint | null;
   warnings: Warning[];
 };
 type PlanDeps = {
@@ -187,11 +189,12 @@ async function planOrder(
     atMid,
     atSpread,
     settler: info.settler,
+    usdcValue: value,
     warnings,
   };
   await checkChain(plan, deps.chain, warnings);
   return plan;
 }
 
-export { planOrder };
+export { floorFor, planOrder };
 export type { OrderInput, OrderPlan, Warning };

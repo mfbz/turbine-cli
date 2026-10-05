@@ -145,6 +145,17 @@ async function capture(argv: string[], options: Options = {}) {
           next === undefined ? [] : [next as typeof LISTED]
         );
       },
+      submitOrders: (plans, signer: Signer) =>
+        Promise.resolve(
+          signer.kind === "dry-run"
+            ? {
+                kind: "dry-run" as const,
+                sign: plans.map(() => [
+                  { purpose: "order" as const, typedData: {} },
+                ]),
+              }
+            : { kind: "sent" as const, hashes: plans.map(() => PLACED) }
+        ),
       submitOrder: (_plan, signer: Signer) =>
         Promise.resolve(submitted(signer, "order")),
       submitCancel: (_hash, _settler, signer: Signer) =>
@@ -687,6 +698,71 @@ describe("turbine orders and turbine order cancel", () => {
     const refused = await capture(
       ["order", "cancel", PLACED, "--network", "mainnet", "--json"],
       { home, env }
+    );
+    expect(refused.doc().error.code).toBe("CONFIRMATION_REQUIRED");
+  });
+});
+
+describe("turbine ladder", () => {
+  const LADDER = [
+    "ladder",
+    "1",
+    "WETH",
+    "--for",
+    "USDC",
+    "--levels",
+    "4",
+    "--from",
+    "-10",
+    "--to",
+    "20",
+    "--ttl",
+    "4h",
+  ];
+
+  it("dry-runs every level and places them in one batch", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const dry = await capture([...LADDER, "--dry-run", "--json"], {
+      home,
+      env,
+    });
+    const data = dry.doc().data as {
+      dryRun: boolean;
+      ladder: { levels: Array<{ spreadBps: number }> };
+      sign: unknown[];
+    };
+    expect(data.dryRun).toBe(true);
+    expect(data.ladder.levels.map((l) => l.spreadBps)).toEqual([
+      -10, 0, 10, 20,
+    ]);
+    expect(data.sign).toHaveLength(4);
+    const placed = await capture([...LADDER, "--json"], { home, env });
+    expect(placed.doc().data).toMatchObject({
+      dryRun: false,
+      hashes: [PLACED, PLACED, PLACED, PLACED],
+    });
+    const human = await capture(LADDER, { home, env });
+    expect(human.err).toContain("4 orders");
+    expect(human.err).toContain("-10 to 20 bps");
+    expect(human.err).toContain("You sign 8 things");
+    const ladder = (
+      dry.doc().data as {
+        ladder: { atSpreadNow: { amount: string }; spreadFromBps: number };
+      }
+    ).ladder;
+    // 0.25 WETH per level at mid 2500 = 625 USDC, at -10, 0, 10 and 20 bps.
+    expect(ladder.atSpreadNow.amount).toBe("2498.75");
+    expect(ladder.spreadFromBps).toBe(-10);
+  });
+
+  it("asks first on mainnet", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const enough = { balance: 10n ** 30n, allowance: 2n ** 256n - 1n };
+    const refused = await capture(
+      [...LADDER, "--network", "mainnet", "--json"],
+      { home, env, chain: enough }
     );
     expect(refused.doc().error.code).toBe("CONFIRMATION_REQUIRED");
   });

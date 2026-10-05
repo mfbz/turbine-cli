@@ -30,6 +30,8 @@ type Signer =
   { kind: "account"; account: Account } | { kind: "dry-run"; address: Hex };
 type Submitted =
   { kind: "sent"; hash: Hex } | { kind: "dry-run"; sign: SignRequest[] };
+type SubmittedMany =
+  { kind: "sent"; hashes: Hex[] } | { kind: "dry-run"; sign: SignRequest[][] };
 type SdkDeps = {
   network: NetworkConfig;
   // Test-only: the Ethereum RPC (default: TURBINE_RPC_URL or viem's public mainnet endpoint).
@@ -173,12 +175,8 @@ async function run(
   throw new CliError("INTERNAL");
 }
 
-async function submitOrder(
-  plan: OrderPlan,
-  signer: Signer,
-  deps: SdkDeps
-): Promise<Submitted> {
-  const intent = {
+function intentOf(plan: OrderPlan) {
+  return {
     owner: plan.owner,
     sellToken: plan.sell.address,
     buyToken: plan.buy.address,
@@ -193,6 +191,48 @@ async function submitOrder(
     callDataTarget: zeroAddress,
     salt: getRandomSalt(),
   };
+}
+
+/** Several orders in one signed batch (a ladder); a dry run captures each order's signatures. */
+async function submitOrders(
+  plans: readonly OrderPlan[],
+  signer: Signer,
+  deps: SdkDeps
+): Promise<SubmittedMany> {
+  const [first] = plans;
+  if (!first) throw new CliError("INTERNAL");
+  if (signer.kind === "dry-run") {
+    const sign: SignRequest[][] = [];
+    for (const plan of plans) {
+      const result = await submitOrder(plan, signer, deps);
+      if (result.kind !== "dry-run") throw new CliError("INTERNAL");
+      sign.push(result.sign);
+    }
+    return { kind: "dry-run", sign };
+  }
+  const watch = watched(signer.account);
+  const client = await quietly(() =>
+    connect(watch.account, deps, first.settler)
+  );
+  try {
+    const hashes = await quietly(() => client.addOrders(plans.map(intentOf)));
+    // One hash per order sent: anything else means some may not have been taken.
+    if (hashes.length !== plans.length)
+      throw new CliError("ORDER_OUTCOME_UNKNOWN");
+    return { kind: "sent", hashes: hashes as Hex[] };
+  } catch (error) {
+    if (watch.requestSigned())
+      throw new CliError("ORDER_OUTCOME_UNKNOWN", {}, { cause: error });
+    throw error;
+  }
+}
+
+async function submitOrder(
+  plan: OrderPlan,
+  signer: Signer,
+  deps: SdkDeps
+): Promise<Submitted> {
+  const intent = intentOf(plan);
   return run(
     signer,
     deps,
@@ -248,5 +288,5 @@ function openOrderReader(account: Account, settler: Hex, deps: SdkDeps) {
   };
 }
 
-export { listOrders, openOrderReader, submitCancel, submitOrder };
-export type { SdkDeps, SignRequest, Signer, Submitted };
+export { listOrders, openOrderReader, submitCancel, submitOrder, submitOrders };
+export type { SdkDeps, SignRequest, Signer, Submitted, SubmittedMany };

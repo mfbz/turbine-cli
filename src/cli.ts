@@ -26,7 +26,13 @@ import type {
   openOrderReader,
   submitCancel,
   submitOrder,
+  submitOrders,
 } from "./turbine/sdk-orders.ts";
+import {
+  ladderCommand,
+  renderLadder,
+  renderLadderSummary,
+} from "./commands/ladder.ts";
 import { orderReport, parseStatuses, renderOrders } from "./commands/orders.ts";
 import { cancelCommand, checkHash, renderCancel } from "./commands/cancel.ts";
 import { watchOrder } from "./commands/watch.ts";
@@ -71,6 +77,7 @@ type Io = {
     listOrders: typeof listOrders;
     openOrderReader: typeof openOrderReader;
     submitOrder: typeof submitOrder;
+    submitOrders: typeof submitOrders;
     submitCancel: typeof submitCancel;
   };
   // Test-only: the clock, in seconds.
@@ -124,6 +131,12 @@ function isOrderHash(argv: readonly string[], index: number): boolean {
     HASH_COMMANDS.has(argv[order + 1] ?? "") &&
     index === order + 2
   );
+}
+
+// Whole numbers only: Number() would also take 1e1 or 0x5.
+function parseLevels(text: string): number {
+  if (!/^\d{1,3}$/.test(text.trim())) throw new CliError("LEVELS_INVALID");
+  return Number(text.trim());
 }
 
 function isCommanderError(error: unknown): error is { code: string } {
@@ -274,6 +287,8 @@ function buildProgram(
     },
     submitOrder: async (...args: Parameters<typeof submitOrder>) =>
       (await import("./turbine/sdk-orders.ts")).submitOrder(...args),
+    submitOrders: async (...args: Parameters<typeof submitOrders>) =>
+      (await import("./turbine/sdk-orders.ts")).submitOrders(...args),
     submitCancel: async (...args: Parameters<typeof submitCancel>) =>
       (await import("./turbine/sdk-orders.ts")).submitCancel(...args),
   };
@@ -331,6 +346,34 @@ function buildProgram(
       submit: orders.submitOrder,
     });
     output.result(result, (theme) => renderPlaced(result, theme));
+  };
+  const placeLadder = async (input: {
+    amount: string;
+    sell: string;
+    buy: string;
+    levels: number;
+    fromBps: number;
+    toBps: number;
+    ttl: string;
+    limit?: string;
+  }) => {
+    const wallet = signingWallet();
+    const result = await ladderCommand(input, {
+      api: api(),
+      chain: chain().reader,
+      network: network(),
+      wallet: { name: wallet.name, address: wallet.address },
+      dryRun: options().dryRun === true,
+      yes: options().yes === true,
+      interactive: io.interactive,
+      now,
+      note: (summary) =>
+        output.note(renderLadderSummary(summary, output.theme)),
+      confirm,
+      unlock: wallet.unlock,
+      submit: orders.submitOrders,
+    });
+    output.result(result, (theme) => renderLadder(result, theme));
   };
   const approve = async (token: string, amount?: string) => {
     const wallet = signingWallet();
@@ -577,6 +620,55 @@ function buildProgram(
           },
         },
         {
+          value: "ladder",
+          label: "Build a ladder",
+          hint: "several orders at spaced spreads",
+          run: async () => {
+            const amount = await ask(
+              prompter,
+              "How much do you sell in total?",
+              "1"
+            );
+            const sell = await ask(
+              prompter,
+              "Which token do you sell?",
+              "WETH"
+            );
+            const buy = await ask(prompter, "For which token?", "USDC");
+            const levels = await ask(prompter, "How many levels? (2–20)", "5");
+            const from = await ask(
+              prompter,
+              "Tightest spread in basis points",
+              "-10"
+            );
+            const to = await ask(
+              prompter,
+              "Widest spread in basis points",
+              "30"
+            );
+            const ttl = await ask(
+              prompter,
+              "How long should they live? (e.g. 4h)",
+              "4h"
+            );
+            const limit = await ask(
+              prompter,
+              "Limit price (blank for none)",
+              ""
+            );
+            await placeLadder({
+              amount,
+              sell,
+              buy,
+              levels: parseLevels(levels),
+              fromBps: parseBps(from),
+              toBps: parseBps(to),
+              ttl,
+              ...(limit ? { limit } : {}),
+            });
+          },
+        },
+        {
           value: "approve",
           label: "Approve a token",
           hint: "once per token, an Ethereum transaction",
@@ -680,6 +772,38 @@ function buildProgram(
           : { spreadBps: parseBps(opts.spread) }),
       });
     });
+
+  program
+    .command("ladder")
+    .description(
+      "split an amount into orders at evenly spaced spreads (market making)"
+    )
+    .argument("<amount>", "the total you sell, e.g. 10")
+    .argument("<token>", "the token you sell, e.g. WETH")
+    .requiredOption("--for <token>", "the token you buy, e.g. USDC")
+    .requiredOption("--levels <n>", "how many orders, 2 to 20")
+    .requiredOption(
+      "--from <bps>",
+      "the tightest spread, e.g. -10 (better than mid)"
+    )
+    .requiredOption("--to <bps>", "the widest spread, e.g. 30")
+    .requiredOption("--ttl <duration>", "how long they live, e.g. 4h")
+    .option(
+      "--limit <price>",
+      "never trade below this price (buy per sell), for every level"
+    )
+    .action((amount, token, opts) =>
+      placeLadder({
+        amount,
+        sell: token,
+        buy: opts.for,
+        levels: parseLevels(opts.levels),
+        fromBps: parseBps(opts.from),
+        toBps: parseBps(opts.to),
+        ttl: opts.ttl,
+        ...(opts.limit === undefined ? {} : { limit: opts.limit }),
+      })
+    );
 
   program
     .command("approve")

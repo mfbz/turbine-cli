@@ -168,6 +168,30 @@ function renderPlaced(result: PlaceResult, theme: Theme): string {
   ].join("\n");
 }
 
+/** Mainnet, or a playground order that could expose real tokens: ask, or require --yes. */
+async function confirmRealFunds(
+  plan: OrderPlan,
+  deps: Pick<PlaceDeps, "network" | "interactive" | "yes" | "confirm">,
+  what: "order" | "ladder"
+): Promise<void> {
+  // Couldn't check counts as exposed: the signature is real either way.
+  const realFunds =
+    deps.network.name === "mainnet" ||
+    plan.warnings.includes("REAL_FUNDS_EXPOSED") ||
+    plan.warnings.includes("CHAIN_UNCHECKED");
+  if (!realFunds) return;
+  if (deps.interactive) {
+    const sure = await deps.confirm(
+      deps.network.name === "mainnet"
+        ? `Sign and place this ${what} on mainnet, with real funds?`
+        : "Sign anyway? The allowance could move this wallet's real tokens."
+    );
+    if (sure !== true) throw new CliError("CANCELLED");
+  } else if (!deps.yes) {
+    throw new CliError("CONFIRMATION_REQUIRED");
+  }
+}
+
 async function placeCommand(
   input: OrderInput,
   deps: PlaceDeps
@@ -194,23 +218,7 @@ async function placeCommand(
   }
 
   // Real funds: mainnet, or a playground order whose allowance could move this wallet's real tokens.
-  // Couldn't check counts as exposed: the signature is real either way.
-  const realFunds =
-    deps.network.name === "mainnet" ||
-    plan.warnings.includes("REAL_FUNDS_EXPOSED") ||
-    plan.warnings.includes("CHAIN_UNCHECKED");
-  if (realFunds) {
-    if (deps.interactive) {
-      const sure = await deps.confirm(
-        deps.network.name === "mainnet"
-          ? "Sign and place this order on mainnet, with real funds?"
-          : "Sign anyway? The allowance could move this wallet's real tokens."
-      );
-      if (sure !== true) throw new CliError("CANCELLED");
-    } else if (!deps.yes) {
-      throw new CliError("CONFIRMATION_REQUIRED");
-    }
-  }
+  await confirmRealFunds(plan, deps, "order");
 
   const { account } = await deps.unlock();
   if (account.address.toLowerCase() !== deps.wallet.address.toLowerCase())
@@ -220,5 +228,11 @@ async function placeCommand(
   return { dryRun: false, order: summary, hash: result.hash };
 }
 
-export { placeCommand, renderPlaced, renderSummary };
-export type { OrderSummary, PlaceResult };
+export {
+  confirmRealFunds,
+  placeCommand,
+  renderPlaced,
+  renderSummary,
+  summarise,
+};
+export type { OrderSummary, PlaceDeps, PlaceResult };
