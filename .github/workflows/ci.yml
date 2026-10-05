@@ -29,16 +29,18 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      # Advisories in runtime dependencies fail a pull request that changes dependencies (so none can
-      # bring one in) and only warn otherwise (an advisory nobody can fix yet mustn't block every change).
-      - name: Audit runtime dependencies
+      # Every dependency, development ones too: the Turbine SDK is one, and its code ships in the bundle.
+      # An advisory fails a pull request that changes dependencies (so none can bring one in) and only
+      # warns otherwise (an advisory nobody can fix yet, or a registry outage, mustn't block every
+      # change). Low-severity advisories with no fix (elliptic, via the SDK, not bundled) don't count.
+      - name: Audit dependencies
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.base_ref }}
         run: |
-          if npm audit --omit=dev --audit-level=high; then exit 0; fi
+          if npm audit --audit-level=moderate; then exit 0; fi
           if [ "$EVENT" = pull_request ] && ! git diff --quiet "origin/$BASE" -- package.json package-lock.json; then exit 1; fi
-          echo "::warning::npm audit found a high or critical advisory (see this step's log)"
+          echo "::warning::npm audit found a moderate or worse advisory (see this step's log)"
 
   # The title and description become the squash commit on main, so they pass the commit guards too.
   pull-request:
