@@ -50,6 +50,33 @@ describe("resolveNetwork", () => {
     expect(error.exitCode).toBe(2);
   });
 
+  it("refuses an API override pointing anywhere but this computer, since the API decides what gets signed", () => {
+    for (const apiUrl of [
+      "https://evil.example/api",
+      "https://api.turbine.exchange.evil.example/api",
+      "http://localhost.evil.example/api",
+    ]) {
+      const error = thrown(() => resolveNetwork({ env: { apiUrl } }));
+      expect(error.code, apiUrl).toBe("API_URL_NOT_ALLOWED");
+    }
+  });
+
+  it("refuses any API override on mainnet", () => {
+    const error = thrown(() =>
+      resolveNetwork({
+        flag: "mainnet",
+        env: { apiUrl: "http://localhost:3000/api" },
+      })
+    );
+    expect(error.code).toBe("API_URL_NOT_ALLOWED");
+  });
+
+  it("allows a local mock on 127.0.0.1 too", () => {
+    expect(
+      resolveNetwork({ env: { apiUrl: "http://127.0.0.1:8080/api" } }).apiUrl
+    ).toBe("http://127.0.0.1:8080/api");
+  });
+
   it("takes API and RPC overrides, without a trailing slash on the API (the SDK compares it exactly)", () => {
     expect(
       resolveNetwork({
