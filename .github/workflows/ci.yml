@@ -84,7 +84,8 @@ jobs:
     steps:
       # Only a pass counts: success, or skipped (the pull-request job on pushes). Anything else fails
       # the check, including results nobody listed, like a job that never got a runner ("abandoned").
-      - env:
+      - name: Every job passed
+        env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "$RESULTS"

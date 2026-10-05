@@ -5,7 +5,7 @@ import { parse } from "yaml";
 
 import { readRepoFile } from "./repo.ts";
 
-type Step = { run?: string };
+type Step = { name?: string; run?: string };
 type Workflow = {
   on: Record<string, { types?: string[] } | null>;
   jobs: Record<string, { steps?: Step[] }>;
@@ -15,7 +15,9 @@ const ci = parse(readRepoFile(".github", "workflows", "ci.yml")) as Workflow;
 
 // The one required check: it passes only if every job it waits for passed or was skipped.
 function gate(results: string): number | null {
-  const script = ci.jobs.ci?.steps?.find((step) => step.run)?.run ?? "";
+  const script =
+    ci.jobs.ci?.steps?.find((step) => step.name === "Every job passed")?.run ??
+    "";
   return spawnSync("bash", ["-e", "-c", script], {
     env: { ...process.env, RESULTS: results },
   }).status;
@@ -28,12 +30,16 @@ describe("the CI workflow", () => {
     );
   });
 
-  it("passes the required check only when every job passed or was skipped", () => {
-    expect(gate("success success success")).toBe(0);
-    expect(gate("success skipped success")).toBe(0);
-    // Jobs that never got a runner end as "abandoned": that is not a pass.
-    for (const bad of ["failure", "cancelled", "abandoned", "timed_out"])
-      expect(gate(`success ${bad} success`), bad).not.toBe(0);
-    expect(gate(""), "no results").not.toBe(0);
-  });
+  // The script is bash, as on GitHub's runners; Windows machines may have none.
+  it.skipIf(process.platform === "win32")(
+    "passes the required check only when every job passed or was skipped",
+    () => {
+      expect(gate("success success success")).toBe(0);
+      expect(gate("success skipped success")).toBe(0);
+      // Jobs that never got a runner end as "abandoned": that is not a pass.
+      for (const bad of ["failure", "cancelled", "abandoned", "timed_out"])
+        expect(gate(`success ${bad} success`), bad).not.toBe(0);
+      expect(gate(""), "no results").not.toBe(0);
+    }
+  );
 });
