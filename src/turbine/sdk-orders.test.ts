@@ -20,7 +20,7 @@ import {
 } from "./sdk-orders.ts";
 
 const API = "https://playground-api.turbine.exchange/api";
-const SETTLER = getAddress("0x2aadb59279619cb33d34ad1a3696e23a2effb394");
+const SETTLER = getAddress("0x5964336d54486f70b6a05b7825021427d99a0e16");
 const NETWORK = {
   name: "playground" as const,
   apiUrl: API,
@@ -33,7 +33,7 @@ const CONFIG = {
   turbineSettlerAddress: SETTLER,
   turbineSignerAddress: SETTLER,
   lpHookAddress: "0x5858ecf7ba160485037d9432d548556070c9a088",
-  lpRouterAddress: "0x769ead430c4d613ef1852a3c7b88371588602bcf",
+  lpRouterAddress: "0xe5b67a998b73c5a5817f56c22b433c4642b7262a",
   poolManagerAddress: "0x000000000004444c5dc75cB358380D2e3dE08A90",
   submitSettlements: false,
   siweDomain: "playground-api.turbine.exchange",

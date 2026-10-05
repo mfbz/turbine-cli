@@ -46,8 +46,8 @@ function createFakeApi(
   };
   const info: ProtocolInfo = {
     version: "fake",
-    settler: getAddress("0x2aadb59279619cb33d34ad1a3696e23a2effb394"),
-    lpRouter: getAddress("0x769ead430c4d613ef1852a3c7b88371588602bcf"),
+    settler: getAddress("0x5964336d54486f70b6a05b7825021427d99a0e16"),
+    lpRouter: getAddress("0xe5b67a998b73c5a5817f56c22b433c4642b7262a"),
     tokens,
     minTradeUsdc: 10_000_000n,
     maxSignatureLifetimeS: 300,

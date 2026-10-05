@@ -3,8 +3,12 @@ import { describe, expect, it } from "vitest";
 import { CliError, toErrorReport } from "../output/errors.ts";
 import { createHttpApi } from "./http.ts";
 
-const SETTLER = "0x2aadb59279619cb33d34ad1a3696e23a2effb394";
-const ROUTER = "0x769ead430c4d613ef1852a3c7b88371588602bcf";
+// Turbine's current mainnet deployment, as its API serves it.
+const SETTLER = "0x5964336d54486f70b6a05b7825021427d99a0e16";
+const ROUTER = "0xe5b67a998b73c5a5817f56c22b433c4642b7262a";
+// The deployment it replaced: still onchain, no longer Turbine's.
+const RETIRED_SETTLER = "0x2aadb59279619cb33d34ad1a3696e23a2effb394";
+const RETIRED_ROUTER = "0x769ead430c4d613ef1852a3c7b88371588602bcf";
 const WETH = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 const USDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
@@ -151,6 +155,8 @@ describe("the Turbine API client", () => {
     for (const over of [
       { turbineSettlerAddress: other },
       { lpRouterAddress: other },
+      { turbineSettlerAddress: RETIRED_SETTLER },
+      { lpRouterAddress: RETIRED_ROUTER },
     ]) {
       const { fetch } = fakeFetch(() => json(config(over)));
       const error = await rejection(
