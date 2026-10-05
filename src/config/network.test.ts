@@ -1,0 +1,68 @@
+import { describe, expect, it } from "vitest";
+
+import { CliError } from "../output/errors.ts";
+import { resolveNetwork } from "./network.ts";
+
+function thrown(fn: () => unknown): CliError {
+  try {
+    fn();
+  } catch (error) {
+    if (error instanceof CliError) return error;
+    throw error;
+  }
+  throw new Error("expected a CliError");
+}
+
+describe("resolveNetwork", () => {
+  it("is the playground unless told otherwise", () => {
+    expect(resolveNetwork({ env: {} })).toEqual({
+      name: "playground",
+      apiUrl: "https://playground-api.turbine.exchange/api",
+      chainId: 1,
+    });
+  });
+
+  it("uses mainnet with --network mainnet", () => {
+    expect(resolveNetwork({ flag: "mainnet", env: {} })).toMatchObject({
+      name: "mainnet",
+      apiUrl: "https://api.turbine.exchange/api",
+    });
+  });
+
+  it("refuses mainnet from the environment alone", () => {
+    const error = thrown(() => resolveNetwork({ env: { network: "mainnet" } }));
+    expect(error.code).toBe("MAINNET_NEEDS_FLAG");
+    expect(error.hint).toContain("--network mainnet");
+  });
+
+  it("lets the flag win over the environment", () => {
+    expect(
+      resolveNetwork({ flag: "mainnet", env: { network: "playground" } }).name
+    ).toBe("mainnet");
+    expect(
+      resolveNetwork({ flag: "playground", env: { network: "mainnet" } }).name
+    ).toBe("playground");
+  });
+
+  it("rejects an unknown network as a usage error", () => {
+    const error = thrown(() => resolveNetwork({ flag: "testnet", env: {} }));
+    expect(error.code).toBe("USAGE");
+    expect(error.exitCode).toBe(2);
+  });
+
+  it("takes API and RPC overrides, without a trailing slash on the API (the SDK compares it exactly)", () => {
+    expect(
+      resolveNetwork({
+        env: {
+          apiUrl: "http://localhost:3000/api/",
+          rpcUrl: "https://rpc.example.com",
+        },
+      })
+    ).toEqual({
+      name: "playground",
+      apiUrl: "http://localhost:3000/api",
+      chainId: 1,
+      rpcUrl: "https://rpc.example.com",
+    });
+  });
+});
