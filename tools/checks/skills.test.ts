@@ -89,7 +89,7 @@ describe("validateSkill", () => {
 
 describe("checking a skill against the CLI", () => {
   const source = `
-    program.option("--json", "x").option("-y, --yes", "x")
+    program.option("--json", "x").option("-y, --yes", "x").option("--account <name>", "x")
       .option(
         "--dry-run", "x")
     program.command("quote").requiredOption("--spread <bps>", "x");
@@ -100,12 +100,14 @@ describe("checking a skill against the CLI", () => {
   it("reads the CLI's flags and commands from its source", () => {
     const surface = cliSurface(source);
     expect([...surface.flags].sort()).toEqual([
+      "--account",
       "--dry-run",
       "--json",
       "--spread",
       "--yes",
     ]);
-    expect([...surface.commands].sort()).toEqual(["cancel", "order", "quote"]);
+    expect([...surface.commands.keys()].sort()).toEqual(["order", "quote"]);
+    expect([...(surface.commands.get("order") ?? [])]).toEqual(["cancel"]);
   });
 
   it("flags a truncated or misspelled flag, not only a missing one", () => {
@@ -123,5 +125,22 @@ describe("checking a skill against the CLI", () => {
         surface
       )
     ).toEqual(["turbine order wach", "turbine qoute"]);
+  });
+
+  it("checks fenced blocks too, after global flags, and each subcommand under its own group", () => {
+    const surface = cliSurface(source);
+    const text = [
+      "```sh",
+      "turbine quote 1 WETH USDC   # fine",
+      "turbine --json order cancel 0x…",
+      "turbine --account demo order plac 1 WETH",
+      "turbine quote cancel",
+      "turbine cancel",
+      "```",
+    ].join("\n");
+    expect(unknownCommands(text, surface)).toEqual([
+      "turbine order plac",
+      "turbine cancel",
+    ]);
   });
 });

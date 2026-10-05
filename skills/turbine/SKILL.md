@@ -33,7 +33,7 @@ turbine-cli places signed orders that can move real tokens. You prepare and expl
 
 Spreads are in basis points from the mid price: `50` means up to 0.5% worse than mid, `-10` means only fills at least 0.1% better. Durations are like `90s`, `30m`, `4h`, `2d`. Amounts are in whole tokens (`1.5`), never atomic units. Tokens are symbols or addresses. An order follows the market: only `--limit` sets a hard floor, so mention it when there is none (the `NO_LIMIT` warning).
 
-`turbine order watch --json` prints `{ "type": "state", "order", "mid" }` on each change and `{ "type": "final", … }` when the order is done; it can run for hours, so tell the person rather than wait on it silently.
+`turbine order watch --json` prints `{ "type": "state", "order", "mid" }` on each change and `{ "type": "final", … }` when the order is done, or ends with the usual `{ "ok": false, "error" }` line if something fails; it can run for hours, so tell the person rather than wait on it silently.
 
 ## Wallets and passwords
 
@@ -51,6 +51,7 @@ Success is `{ "ok": true, "data": … }`. Failure is `{ "ok": false, "error": { 
 - `CONFIRMATION_REQUIRED`: this needs the person's explicit confirmation (rule 6). Show the dry run and ask; add `--yes` only if they say yes.
 - `ALLOWANCE_MISSING`: on mainnet the token needs `turbine approve <token>` first: dry-run it and ask, since it costs gas.
 - `BALANCE_TOO_LOW`, `AMOUNT_TOO_SMALL`, `LEVEL_TOO_SMALL`, `TTL_TOO_SHORT`, `TTL_TOO_LONG`, `SPREADS_TOO_CLOSE`: adjust the numbers with the person, then dry-run again.
+- `INTERRUPTED`: the command was stopped part way. If it was placing or cancelling, it may have gone through: run `turbine orders --json` before doing it again.
 - `KEY_IN_ARGV`: something that looks like a private key reached the command line. Remove it; never retry with it.
 - `API_REJECTED`: Turbine refused it; `upstreamCode` is Turbine's own code. Tell the person; don't guess around it.
 

@@ -1,7 +1,12 @@
 import { parse } from "yaml";
 
 type Frontmatter = { data: Record<string, unknown>; body: string };
-type CliSurface = { flags: Set<string>; commands: Set<string> };
+// Top-level commands, each with its subcommands (empty for a command that isn't a group).
+type CliSurface = {
+  flags: Set<string>;
+  valueFlags: Set<string>;
+  commands: Map<string, Set<string>>;
+};
 
 // The portable subset of the Agent Skills standard; tool-specific keys would hide skills from other agents.
 const ALLOWED_KEYS = new Set([
@@ -16,12 +21,12 @@ const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_NAME = 64;
 const MAX_DESCRIPTION = 1024;
 // An option's definition string: "--json", "-y, --yes", "--spread <bps>".
-const OPTION_DEFINITION = /"(?:-[a-z], )?(--[a-z][a-z-]*)(?: <[^>]+>)?"/g;
-const COMMAND_DEFINITION = /\.command\("([a-z]+)"/g;
+const OPTION_DEFINITION = /"(?:-[a-z], )?(--[a-z][a-z-]*)( <[^>]+>)?"/g;
+// `program.command("order")`, then `order.command("watch")`: a group's variable is its name.
+const COMMAND_DEFINITION = /\b([a-z]+)\s*\.command\("([a-z]+)"/g;
+const FENCED = /```[^\n]*\n([\s\S]*?)```/g;
 const FLAG_USE = /(?<![\w-])--[a-z][a-z-]*/g;
 const CODE_SPAN = /`([^`]+)`/g;
-// Commands that only group others: what follows them must be a command too.
-const GROUPS = new Set(["order", "wallet"]);
 const BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
 function parseFrontmatter(text: string): Frontmatter | null {
@@ -70,13 +75,23 @@ function validateSkill(folder: string, text: string): string[] {
 
 /** The flags and command names a CLI's source defines, for checking docs against it. */
 function cliSurface(source: string): CliSurface {
+  const options = [...source.matchAll(OPTION_DEFINITION)];
+  const commands = new Map<string, Set<string>>();
+  for (const [, parent = "", name = ""] of source.matchAll(
+    COMMAND_DEFINITION
+  )) {
+    if (parent === "program") {
+      if (!commands.has(name)) commands.set(name, new Set());
+    } else {
+      const children = commands.get(parent) ?? new Set<string>();
+      children.add(name);
+      commands.set(parent, children);
+    }
+  }
   return {
-    flags: new Set(
-      [...source.matchAll(OPTION_DEFINITION)].map((m) => m[1] ?? "")
-    ),
-    commands: new Set(
-      [...source.matchAll(COMMAND_DEFINITION)].map((m) => m[1] ?? "")
-    ),
+    flags: new Set(options.map((m) => m[1] ?? "")),
+    valueFlags: new Set(options.filter((m) => m[2]).map((m) => m[1] ?? "")),
+    commands,
   };
 }
 
@@ -86,20 +101,44 @@ function unknownFlags(text: string, surface: CliSurface): string[] {
     .filter((flag) => !surface.flags.has(flag));
 }
 
-// Only in code spans: prose says "the turbine command line" without meaning a command.
+// Command lines: every line of a fenced block, and inline code spans outside them. Prose says "the
+// turbine command line" without meaning a command, so it isn't checked.
+function commandLines(text: string): string[] {
+  const fenced = [...text.matchAll(FENCED)].flatMap(([, block = ""]) =>
+    block.split("\n")
+  );
+  const inline = [...text.replace(FENCED, "").matchAll(CODE_SPAN)].map(
+    ([, span = ""]) => span
+  );
+  return [...fenced, ...inline];
+}
+
+// The words after `turbine` that aren't global flags or their values.
+function positionals(words: readonly string[], surface: CliSurface): string[] {
+  const found: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i] ?? "";
+    if (surface.valueFlags.has(word)) i++;
+    else if (!word.startsWith("-")) found.push(word);
+  }
+  return found;
+}
+
 function unknownCommands(text: string, surface: CliSurface): string[] {
   const wrong: string[] = [];
-  for (const [, span = ""] of text.matchAll(CODE_SPAN)) {
-    const words = /^turbine ([a-z]+)(?: ([a-z]+))?/.exec(span);
-    if (!words) continue;
-    const [, first = "", second = ""] = words;
-    const known =
-      surface.commands.has(first) &&
-      (!GROUPS.has(first) || surface.commands.has(second));
-    if (!known)
-      wrong.push(
-        GROUPS.has(first) ? `turbine ${first} ${second}` : `turbine ${first}`
-      );
+  for (const line of commandLines(text)) {
+    const words = (line.split("#")[0] ?? "").trim().split(/\s+/);
+    if (words[0] !== "turbine") continue;
+    const [first, second] = positionals(words.slice(1), surface);
+    if (first === undefined) continue;
+    const children = surface.commands.get(first);
+    if (!children) wrong.push(`turbine ${first}`);
+    // `wallet new|import|list` names three subcommands at once.
+    else if (
+      children.size > 0 &&
+      !(second ?? "").split(/\\?\|/).every((name) => children.has(name))
+    )
+      wrong.push(`turbine ${first} ${second ?? ""}`.trim());
   }
   return wrong;
 }

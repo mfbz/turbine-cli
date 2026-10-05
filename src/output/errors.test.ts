@@ -26,6 +26,7 @@ describe("retrying", () => {
       "CANCEL_OUTCOME_UNKNOWN",
       "APPROVAL_PARTIAL",
       "TRANSACTION_PENDING",
+      "INTERRUPTED",
     ] as const)
       expect(CATALOGUE[code].retryable, code).toBe(false);
   });

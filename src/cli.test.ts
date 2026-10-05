@@ -598,6 +598,35 @@ describe("turbine order place", () => {
     expect(result.doc().error.code).toBe("CONFIRMATION_REQUIRED");
   });
 
+  it("doesn't call an unknown settler Turbine's in the summary", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const dead = "0x000000000000000000000000000000000000dEaD";
+    for (const argv of [
+      [...ORDER, "--dry-run"],
+      [
+        "ladder",
+        "3",
+        "WETH",
+        "--for",
+        "USDC",
+        "--levels",
+        "3",
+        "--from",
+        "0",
+        "--to",
+        "20",
+        "--ttl",
+        "1h",
+        "--dry-run",
+      ],
+    ]) {
+      const result = await capture(argv, { home, env, settler: dead });
+      expect(result.err).toContain(`the playground's settler ${dead}`);
+      expect(result.err).not.toContain("Turbine's settler");
+    }
+  });
+
   it("needs a wallet, and checks input before asking for anything", async () => {
     const none = await capture([...ORDER, "--json"]);
     expect(none.doc().error.code).toBe("WALLET_NONE");

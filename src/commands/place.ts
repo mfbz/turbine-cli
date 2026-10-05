@@ -117,6 +117,13 @@ function summarise(plan: OrderPlan, wallet: PlaceDeps["wallet"]): OrderSummary {
   };
 }
 
+// Whose contract the allowance is for, in words that agree with the SETTLER_UNKNOWN warning.
+function settlerOf(s: Pick<OrderSummary, "warnings">): string {
+  return s.warnings.some((w) => w.code === "SETTLER_UNKNOWN")
+    ? "the playground's settler"
+    : "Turbine's settler";
+}
+
 function renderSummary(s: OrderSummary, theme: Theme): string {
   const buy = s.buy.symbol;
   const sell = s.sell.symbol;
@@ -153,7 +160,7 @@ function renderSummary(s: OrderSummary, theme: Theme): string {
     ),
     "",
     `  ${theme.bold("You sign")} two things:`,
-    `  ${theme.dim("1.")} a Permit2 allowance: ${theme.warning(`unlimited ${s.permit2.token}`)} for Turbine's settler ${s.permit2.spender}, until ${s.permit2.expiresAt}`,
+    `  ${theme.dim("1.")} a Permit2 allowance: ${theme.warning(`unlimited ${s.permit2.token}`)} for ${settlerOf(s)} ${s.permit2.spender}, until ${s.permit2.expiresAt}`,
     `  ${theme.dim("2.")} the order itself, sent to Turbine`,
     ...s.warnings.map((w) => `  ${theme.warning("▲")} ${w.message}`),
   ].join("\n");
@@ -236,6 +243,7 @@ export {
   placeCommand,
   renderPlaced,
   renderSummary,
+  settlerOf,
   summarise,
   WARNINGS,
 };

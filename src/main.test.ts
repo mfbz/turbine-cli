@@ -63,7 +63,15 @@ describe("the turbine entry point", () => {
     );
     server.close();
     expect(code).toBe(130);
-    const doc = JSON.parse(stdout) as { ok: boolean; error: { code: string } };
-    expect(doc).toMatchObject({ ok: false, error: { code: "CANCELLED" } });
+    const doc = JSON.parse(stdout) as {
+      ok: boolean;
+      error: { code: string; hint: string; retryable: boolean };
+    };
+    // Not "nothing was changed": an interrupt can land after an order was sent.
+    expect(doc).toMatchObject({
+      ok: false,
+      error: { code: "INTERRUPTED", retryable: false },
+    });
+    expect(doc.error.hint).toContain("turbine orders");
   });
 });

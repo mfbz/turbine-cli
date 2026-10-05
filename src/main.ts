@@ -29,7 +29,7 @@ process.once("SIGINT", () => {
   // --json promises one document, an interrupt included.
   if (process.argv.slice(2).includes("--json")) {
     const { code, message, hint, retryable } = toErrorReport(
-      new CliError("CANCELLED")
+      new CliError("INTERRUPTED")
     );
     const error = { code, message, hint, retryable };
     process.stdout.write(`${JSON.stringify({ ok: false, error })}\n`);
