@@ -120,12 +120,24 @@ const OPTION_NAME = /'(--?[a-z][a-z0-9-]{0,30})/;
 // its 0x form. Everywhere else such a value is refused as a possible private key.
 const ORDER_HASH = /^0x[0-9a-fA-F]{64}$/;
 const HASH_COMMANDS = new Set(["cancel", "watch"]);
+// Global flags whose value is the next word (`--account demo`), so that word isn't the command.
+const VALUE_FLAGS = new Set(["--network", "--account", "--password-file"]);
+
+function commandIndex(argv: readonly string[]): number {
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i] ?? "";
+    if (VALUE_FLAGS.has(arg)) i++;
+    else if (!arg.startsWith("-")) return i;
+  }
+  return -1;
+}
 
 function isOrderHash(argv: readonly string[], index: number): boolean {
   if (!ORDER_HASH.test(argv[index] ?? "")) return false;
-  // Exactly the hash position: `order cancel <hash>` or `order watch <hash>`, after global flags
-  // without values at most. Anywhere else the value is refused.
-  const order = argv.findIndex((arg) => !arg.startsWith("-"));
+  // Exactly the hash position: `order cancel <hash>` or `order watch <hash>`, after global flags at
+  // most. Anywhere else, a flag's value included, the value is refused.
+  const order = commandIndex(argv);
+  if (order < 0) return false;
   return (
     argv[order] === "order" &&
     HASH_COMMANDS.has(argv[order + 1] ?? "") &&
