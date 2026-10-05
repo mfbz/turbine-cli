@@ -60,6 +60,8 @@ describe("Claude Code deny rules", () => {
       "Read(./keys/**)",
       "Read(./keystore/**)",
       "Read(./**/wallet*.json)",
+      "Read(~/.config/turbine-cli/**)",
+      "Read(~/.foundry/keystores/**)",
     ])
       expect(reads).toContain(rule);
   });

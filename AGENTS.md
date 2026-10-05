@@ -35,7 +35,8 @@ npm run cli -- --help     # run the CLI from source
 
 - **Playground is the default.** Mainnet only with an explicit `--network mainnet` and a confirmation that shows amount, tokens, spread, limit and lifetime.
 - **`--dry-run` everywhere**: every command that signs or sends can show exactly what it would sign and send instead.
-- **Never sign silently.** Keys come from `TURBINE_PRIVATE_KEY` or an owner-only `TURBINE_KEY_FILE`; they are never logged, printed, written or committed, and are redacted from every output, errors and `--json` included.
+- **Never sign silently.** Keys live only in encrypted keystores (`turbine wallet new|import`, or Foundry's), unlocked by a hidden prompt, `--password-file` or `TURBINE_WALLET_PASSWORD` from the shell. turbine-cli never takes a raw key from an argument, a variable or a file, and refuses a key-shaped argument. Commands get a signer, never the key.
+- **Errors come from the catalogue only** (`src/output/errors.ts`): never print a library's or the API's error text, or a typed value. Add a catalogue code instead.
 - Output: `--json` prints exactly one JSON document on stdout, errors included (`{ "ok": true, "data": … }` or `{ "ok": false, "error": { "code", "message", "hint" } }`), with a non-zero exit code on failure. Without `--json`, errors go to stderr. Human output respects `NO_COLOR` and non-TTY.
 - The user-facing agent skill always quotes first, dry-runs, and asks a human before `place`, `ladder` or `cancel`.
 - turbine-cli is a standalone product. Write it that way everywhere (code, docs, commits, PRs, issues): no personal context, no backstory, and always "unofficial, not affiliated with Turbine or PropellerHeads".

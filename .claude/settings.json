@@ -58,7 +58,9 @@
       "Read(./keystore/**)",
       "Read(./**/wallet*.json)",
       "Read(./**/*.key)",
-      "Read(./**/*.pem)"
+      "Read(./**/*.pem)",
+      "Read(~/.config/turbine-cli/**)",
+      "Read(~/.foundry/keystores/**)"
     ]
   }
 }

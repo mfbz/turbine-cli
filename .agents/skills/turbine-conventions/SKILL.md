@@ -27,8 +27,10 @@ description: Use when writing or reviewing code in the turbine-cli repo. Covers 
 
 ## Keys and secrets
 
-- Keys enter only through the one key loader. Nothing else reads `TURBINE_PRIVATE_KEY` or `TURBINE_KEY_FILE`.
-- Pass every string that leaves the process (stdout, stderr, logs, `--json`, error messages) through `redact()`.
+- Keys live only in encrypted keystores (`src/wallet/keystore.ts`, `store.ts`); `unlockWallet` (`signer.ts`) is the only place a key is decrypted, and it returns a viem account plus the secrets to register with the output layer. Commands never handle key strings.
+- Never take a key or password from an argument, and never read a password from `.env`.
+- Errors: throw `new CliError(CODE, params)` with a code from the catalogue in `src/output/errors.ts` (add one if needed). Never put a library's or the API's message, or a typed value, into output; params must be names, paths or words (anything else shows as "…").
+- Output goes through `createOutput`: JSON is redacted value by value before it is written; human text is redacted and API-sourced strings go through `plain()`.
 - Tests generate keys at run time (viem `generatePrivateKey()`). Never a literal key in the repo, not even a well-known development key: the guards block it.
 
 ## Output

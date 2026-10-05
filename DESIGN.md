@@ -59,11 +59,11 @@ Glyphs: `✓` done, `✗` error, `▲` warning or mainnet, `▼` falling, `•` 
 Three parts, two lines at most:
 
 ```
-✗ error: The key file ./key.txt can be read by other users of this computer.
-  Make it yours only: chmod 600 ./key.txt
+✗ error: The wallet file ~/.config/turbine-cli/wallets/main.json can be read by other users of this computer.
+  Make it yours only: chmod 600 ~/.config/turbine-cli/wallets/main.json
 ```
 
-What failed, then (dim) what to do next. No stack traces unless `--debug`. Text that comes from the Turbine API is stripped of control characters before it is printed.
+What failed, then (dim) what to do next. Every message and hint comes from turbine-cli's own catalogue (`src/output/errors.ts`), keyed by a stable code: the text of a library error, the Turbine API's message or a value that was typed is never shown. Only a few safe-shaped parameters (a wallet name, a file path, an option name) are filled in. `--debug` adds the error's class and stack frames on stderr, never values. Anything from the API that a command does display (a token symbol, say) is stripped of control characters first.
 
 ## Voice
 
