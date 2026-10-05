@@ -1,5 +1,7 @@
 // An in-memory Turbine for tests and offline demos: the same interface as the HTTP client, with a
 // fixed set of tokens and mid prices.
+import { getAddress } from "viem";
+
 import type { Hex } from "../wallet/signer.ts";
 import type { ProtocolInfo, Quote, Token, TurbineApi } from "./api.ts";
 
@@ -7,19 +9,19 @@ type Prices = Readonly<Record<string, number>>;
 
 const FAKE_TOKENS: Token[] = [
   {
-    address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    address: getAddress("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
     symbol: "WETH",
     decimals: 18,
     tokenClass: "Regular",
   },
   {
-    address: "0xA0b86991c6218b36c1D19D4a2e9Eb0cE3606eB48",
+    address: getAddress("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
     symbol: "USDC",
     decimals: 6,
     tokenClass: "Stable",
   },
   {
-    address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+    address: getAddress("0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"),
     symbol: "WBTC",
     decimals: 8,
     tokenClass: "Regular",
@@ -44,8 +46,8 @@ function createFakeApi(
   };
   const info: ProtocolInfo = {
     version: "fake",
-    settler: "0x2aaDB59279619CB33D34aD1A3696e23A2EFfb394",
-    lpRouter: "0x769EaD430c4D613Ef1852a3c7B88371588602BcF",
+    settler: getAddress("0x2aadb59279619cb33d34ad1a3696e23a2effb394"),
+    lpRouter: getAddress("0x769ead430c4d613ef1852a3c7b88371588602bcf"),
     tokens,
     minTradeUsdc: 10_000_000n,
     maxSignatureLifetimeS: 300,
