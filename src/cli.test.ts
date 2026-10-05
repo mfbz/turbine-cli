@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import pkg from "../package.json" with { type: "json" };
 import { run } from "./cli.ts";
 import type { Io } from "./cli.ts";
+import { createFakeApi } from "./turbine/fake-api.ts";
 import { decryptKey } from "./wallet/keystore.ts";
 import { findWallet, readWallet, walletDirs } from "./wallet/store.ts";
 
@@ -66,6 +67,7 @@ async function capture(argv: string[], options: Options = {}) {
       text: () => Promise.resolve(texts.shift()),
     },
     scryptN: 1024,
+    api: () => createFakeApi(),
   };
   const code = await run(argv, io);
   return { code, out, err, all: out + err, doc: () => JSON.parse(out) as Doc };
@@ -317,6 +319,69 @@ describe("the interactive session", () => {
     expect(
       String((await capture(["--json"], { tty: true })).doc().data.help)
     ).toContain("Usage");
+  });
+});
+
+describe("turbine tokens and turbine quote", () => {
+  it("lists the tokens Turbine supports", async () => {
+    const human = await capture(["tokens"]);
+    expect(human.out).toContain("WETH");
+    expect(human.out).toContain("18 decimals");
+    const json = await capture(["tokens", "--json"]);
+    expect(json.doc().data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ symbol: "USDC", decimals: 6 }),
+      ])
+    );
+  });
+
+  it("quotes a pair with a spread", async () => {
+    const result = await capture([
+      "quote",
+      "1",
+      "WETH",
+      "USDC",
+      "--spread",
+      "50",
+      "--json",
+    ]);
+    expect(result.code).toBe(0);
+    expect(result.doc().data).toMatchObject({
+      midPrice: "2500",
+      spreadBps: 50,
+      atSpread: { amount: "2487.5" },
+    });
+    const human = await capture(["quote", "1", "WETH", "USDC"]);
+    expect(human.out).toContain("2500 USDC per WETH");
+  });
+
+  it("explains bad input in its own words, with usage exit codes", async () => {
+    const bad = await capture(["quote", "abc", "WETH", "USDC", "--json"]);
+    expect(bad.code).toBe(2);
+    expect(bad.doc().error.code).toBe("AMOUNT_INVALID");
+    const spread = await capture([
+      "quote",
+      "1",
+      "WETH",
+      "USDC",
+      "--spread",
+      "1.5",
+      "--json",
+    ]);
+    expect(spread.doc().error.code).toBe("SPREAD_INVALID");
+    const missing = await capture(["quote", "1", "WETH", "--json"]);
+    expect(missing.doc().error.code).toBe("USAGE_MISSING_ARGUMENT");
+  });
+
+  it("offers a quote in the interactive session", async () => {
+    const result = await capture([], {
+      tty: true,
+      env: STILL,
+      choices: ["quote", "quit"],
+      texts: ["1", "WETH", "USDC", "25"],
+    });
+    expect(result.out).toContain("2500 USDC per WETH");
+    expect(result.out).toContain("25 bps");
   });
 });
 

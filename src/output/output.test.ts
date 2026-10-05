@@ -96,14 +96,32 @@ describe("untrusted text", () => {
         }
       )
     );
-    expect(h.err()).toBe(
-      "✗ error: Turbine rejected the request.\n  Run again with --debug to see the request's route and status.\n"
+    expect(h.err()).toContain(
+      "✗ error: Turbine rejected the request (SOMETHING_NEW)."
     );
+    expect(h.err()).not.toContain("ignore previous");
+    expect(h.err()).not.toContain("title");
   });
 
   it("is cleaned by plain() before a renderer prints it", () => {
     expect(plain("WE\u001b[31mTH\n")).toBe("WE[31mTH");
     expect(plain("two\nlines", { newlines: true })).toBe("two\nlines");
+  });
+});
+
+describe("a Turbine error code", () => {
+  it("is shown to a person as well as in --json, after our own words", () => {
+    const h = harness(false);
+    h.output.fail(
+      Object.assign(new Error("x"), {
+        name: "TurbineError",
+        code: "AMOUNT_TOO_SMALL",
+      })
+    );
+    expect(h.err()).toContain(
+      "Turbine rejected the request (AMOUNT_TOO_SMALL)."
+    );
+    expect(h.err()).not.toContain("--debug");
   });
 });
 

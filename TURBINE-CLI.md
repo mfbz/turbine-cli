@@ -76,7 +76,7 @@ Flags, the `--json` shape and acceptance checks are added to each command here w
 
 ### `turbine` (the interactive session)
 
-`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
+`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: get a quote, supported tokens, show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
 
 - Switching to mainnet asks for confirmation first; the header and every summary name the network.
 - An action that fails shows its error and returns to the menu; Ctrl-C or Esc at the menu quits.
@@ -142,15 +142,55 @@ Acceptance:
 
 ### `turbine tokens`
 
-The tokens Turbine supports on the selected network.
+The tokens Turbine supports on the selected network (from Turbine's `/api/config`).
 
-Status: planned.
+`--json` data: `[{ "address", "symbol", "decimals", "tokenClass" }]`.
+
+Status: done.
 
 ### `turbine quote <amount> <sell> <buy> [--spread <bps>]`
 
-The current mid price for a pair, the fee, and what a given spread would mean in price and amount received.
+The mid price for a pair, what selling `<amount>` would bring at mid, Turbine's fee, and what swapping elsewhere costs now. With `--spread`, also the least you'd receive at the edge of that spread (positive: up to that much worse than mid; negative: only that much better than mid or more). Tokens are symbols or addresses; amounts are in whole tokens (`1.5`). Nothing is signed: quoting uses Turbine's public `/api/quote`.
 
-Status: planned.
+`--json` data:
+
+```json
+{
+  "network": "playground",
+  "sell": {
+    "symbol": "WETH",
+    "address": "0x…",
+    "amount": "1",
+    "atomic": "1000000000000000000"
+  },
+  "buy": { "symbol": "USDC", "address": "0x…" },
+  "midPrice": "2500",
+  "midRatio": {
+    "numerator": "2500000000",
+    "denominator": "1000000000000000000"
+  },
+  "atMid": { "amount": "2500", "atomic": "2500000000" },
+  "spreadBps": 50,
+  "atSpread": { "amount": "2487.5", "atomic": "2487500000" },
+  "fee": {
+    "percent": "0.07",
+    "amount": { "amount": "1.75", "atomic": "1750000" }
+  },
+  "dexSpreadPercent": "0.15"
+}
+```
+
+`midPrice` is buy tokens per sell token to 18 significant digits; `midRatio` is Turbine's exact mid price in atomic units (buy per sell). Amounts are exact decimal strings plus atomic units. Human output rounds to 8 significant digits, and rounds the spread's floor down, so "at least" is never more than the order guarantees. `spreadBps` and `atSpread` are `null` without `--spread`. A Turbine error shows its code in brackets (and as `upstreamCode` in `--json`).
+
+Status: done.
+
+Acceptance:
+
+- [x] Mid price, amount at mid, fee and DEX spread are computed exactly from Turbine's quote (`src/commands/quote.test.ts`, `src/turbine/amounts.test.ts`).
+- [x] A spread gives the edge amount, positive and negative (`src/commands/quote.test.ts`).
+- [x] Unknown tokens, the same token twice, bad amounts and bad spreads are refused in plain words, usage errors with exit 2 (`src/commands/quote.test.ts`, `src/cli.test.ts`).
+- [x] Turbine's answers are validated; 502–504 read as unavailable, 501 as quoting switched off, an unreachable network as retryable; Turbine's error text is never shown (`src/turbine/http.test.ts`).
+- [x] On mainnet, a config naming contracts other than Turbine's published settler and router is refused (`src/turbine/http.test.ts`).
 
 ### `turbine approve <token>`
 
