@@ -23,6 +23,9 @@ type Options = {
   env?: Record<string, string>;
   tty?: boolean;
   answers?: string[];
+  choices?: string[];
+  confirms?: boolean[];
+  texts?: string[];
   home?: string;
 };
 
@@ -42,6 +45,9 @@ async function capture(argv: string[], options: Options = {}) {
   let err = "";
   const home = options.home ?? tempDir();
   const answers = [...(options.answers ?? [])];
+  const choices = [...(options.choices ?? [])];
+  const confirms = [...(options.confirms ?? [])];
+  const texts = [...(options.texts ?? [])];
   const io: Io = {
     stdout: (text) => (out += text),
     stderr: (text) => (err += text),
@@ -52,7 +58,13 @@ async function capture(argv: string[], options: Options = {}) {
       ? { isTTY: true, columns: 100, getColorDepth: () => 24 }
       : { isTTY: false },
     interactive: options.tty ?? false,
-    prompter: { secret: () => Promise.resolve(answers.shift()) },
+    prompter: {
+      secret: () => Promise.resolve(answers.shift()),
+      choose: <T extends string>() =>
+        Promise.resolve(choices.shift() as T | undefined),
+      confirm: () => Promise.resolve(confirms.shift()),
+      text: () => Promise.resolve(texts.shift()),
+    },
     scryptN: 1024,
   };
   const code = await run(argv, io);
@@ -225,6 +237,86 @@ describe("turbine wallet", () => {
     );
     expect(result.code).toBe(0);
     expect(result.doc().data).toMatchObject({ wallet: null, rpcUrl: null });
+  });
+});
+
+// The session tests skip the header's animation, which would otherwise take a second or two each.
+const STILL = { TURBINE_NO_MOTION: "1" };
+
+describe("the interactive session", () => {
+  it("opens with the header and a menu in a terminal, and quits cleanly", async () => {
+    const result = await capture([], {
+      tty: true,
+      choices: ["config", "quit"],
+    });
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("trade slow, pay less");
+    expect(result.out).toContain("playground-api.turbine.exchange");
+    expect(result.out).not.toContain("Usage");
+  });
+
+  it("treats a cancelled menu as quitting", async () => {
+    const result = await capture([], { tty: true, choices: [], env: STILL });
+    expect(result.code).toBe(0);
+  });
+
+  it("shows an error from one action and carries on", async () => {
+    const result = await capture([], {
+      tty: true,
+      env: STILL,
+      choices: ["wallet-new", "wallets", "quit"],
+      texts: ["main"],
+      answers: ["short", "short"],
+    });
+    expect(result.code).toBe(0);
+    expect(result.err).toContain("too short");
+    expect(result.out).toMatch(/No wallets yet/);
+  });
+
+  it("asks before switching to mainnet, and the setup then says so", async () => {
+    const declined = await capture([], {
+      tty: true,
+      env: STILL,
+      choices: ["network", "mainnet", "config", "quit"],
+      confirms: [false],
+    });
+    expect(declined.out).toContain("simulated, no real funds");
+    expect(declined.out).not.toContain("▲ mainnet");
+    const accepted = await capture([], {
+      tty: true,
+      env: STILL,
+      choices: ["network", "mainnet", "config", "quit"],
+      confirms: [true],
+    });
+    expect(accepted.out).toContain("▲ mainnet");
+  });
+
+  it("doesn't offer to switch networks when --network was given", async () => {
+    const result = await capture(["--network", "playground"], {
+      tty: true,
+      env: STILL,
+      choices: ["network", "config", "quit"],
+    });
+    expect(result.out).toContain("simulated, no real funds");
+    expect(result.err).not.toMatch(/error/);
+  });
+
+  it("goes quietly back to the menu when a question is cancelled", async () => {
+    const result = await capture([], {
+      tty: true,
+      env: STILL,
+      choices: ["wallet-new", "quit"],
+      texts: [],
+    });
+    expect(result.code).toBe(0);
+    expect(result.err).not.toContain("error");
+  });
+
+  it("is never opened without a terminal or with --json", async () => {
+    expect((await capture([])).out).toContain("Usage");
+    expect(
+      String((await capture(["--json"], { tty: true })).doc().data.help)
+    ).toContain("Usage");
   });
 });
 
