@@ -2,7 +2,9 @@ name: CI
 # Every pull request and every push to main. `ci` is the one check to require: it fails if any job did.
 # The weekly run catches new advisories and runner changes; it can also be started by hand.
 on:
+  # `edited`: the title and description become the squash commit, so a change to them is checked again.
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
   schedule:

@@ -1,7 +1,7 @@
 name: Release
 # Publishes turbine-cli to npm. By hand only, from main, with an explicit version: nothing releases by
 # itself. npm trusts this workflow through trusted publishing (OIDC), so there is no npm token anywhere.
-# Before the first run: CONTRIBUTING.md, "Repository settings".
+# Before the first run (claiming the name, the trusted publisher): CONTRIBUTING.md, "Repository settings".
 on:
   workflow_dispatch:
     inputs:
