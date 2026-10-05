@@ -2,7 +2,7 @@
 // not a library's message, not the Turbine API's text, not what was typed. Agents branch on `code`;
 // `message` and `hint` are ours, so they are safe to show to a person and to put in an agent's context.
 
-type ExitCode = 1 | 2;
+type ExitCode = 1 | 2 | 130;
 type Entry = {
   exit: ExitCode;
   retryable: boolean;
@@ -94,6 +94,11 @@ const CATALOGUE = {
     "Wallet names use letters, digits, - and _ (up to 32).",
     "For example: turbine wallet new trading"
   ),
+  WALLET_STORAGE_FAILED: entry(
+    1,
+    "Can't use the wallets folder {path}.",
+    "Check it is a folder you own (not a link to somewhere else) and that you can write to it."
+  ),
   WALLET_FILE_TOO_OPEN: entry(
     1,
     "The wallet file {path} can be read by other users of this computer.",
@@ -144,7 +149,7 @@ const CATALOGUE = {
     "This needs a terminal to ask you something privately.",
     "Run it in a terminal yourself; this step is never automated."
   ),
-  CANCELLED: entry(1, "Cancelled.", "Nothing was changed."),
+  CANCELLED: entry(130, "Cancelled.", "Nothing was changed."),
   SERVICE_UNAVAILABLE: entry(
     1,
     "Turbine is unavailable right now.",
@@ -212,8 +217,14 @@ function report(code: ErrorCode, params: Params = {}): FullReport {
   };
 }
 
-function isCoded(value: unknown): value is { code: unknown } {
-  return typeof value === "object" && value !== null && "code" in value;
+// The SDK's TurbineError, by shape so this module needn't import the SDK. Other errors with a code
+// (Node's ENOTDIR, ERR_CRYPTO_*) are not Turbine's and must never read as "Turbine rejected".
+function isTurbineError(value: unknown): value is { code: string } {
+  return (
+    value instanceof Error &&
+    value.name === "TurbineError" &&
+    typeof (value as { code?: unknown }).code === "string"
+  );
 }
 
 // Class name and stack frames only: frames hold file names and line numbers, never values.
@@ -235,7 +246,7 @@ function toErrorReport(error: unknown): FullReport {
   let full: FullReport;
   if (error instanceof CliError) {
     full = report(error.code, error.params);
-  } else if (isCoded(error) && typeof error.code === "string") {
+  } else if (isTurbineError(error)) {
     const known = UPSTREAM[error.code];
     full = known ? report(known) : report("API_REJECTED");
     if (!known && SAFE_UPSTREAM_CODE.test(error.code))

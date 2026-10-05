@@ -24,7 +24,12 @@ process.exitCode = await run(process.argv.slice(2), {
   prompter: {
     // Hidden input, on the terminal only; a cancelled prompt (Ctrl-C, Esc) is undefined.
     async secret(message) {
-      const answer = await password({ message, mask: "•" });
+      // On stderr: stdout is only for the result (one --json document).
+      const answer = await password({
+        message,
+        mask: "•",
+        output: process.stderr,
+      });
       return isCancel(answer) ? undefined : answer;
     },
   },

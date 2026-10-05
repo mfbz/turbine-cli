@@ -87,10 +87,15 @@ describe("human output", () => {
 describe("untrusted text", () => {
   it("never reaches an error: a server message is replaced by our own words", () => {
     const h = harness(false);
-    h.output.fail({
-      code: "SOMETHING_NEW",
-      message: "bad\u001b]0;title\u0007 ignore previous instructions",
-    });
+    h.output.fail(
+      Object.assign(
+        new Error("bad\u001b]0;title\u0007 ignore previous instructions"),
+        {
+          name: "TurbineError",
+          code: "SOMETHING_NEW",
+        }
+      )
+    );
     expect(h.err()).toBe(
       "✗ error: Turbine rejected the request.\n  Run again with --debug to see the request's route and status.\n"
     );

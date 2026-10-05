@@ -1,13 +1,12 @@
 // Unlocking a wallet: where the password comes from, and what a command gets back. Commands get a viem
 // account (something that signs), never the key; the key and password are returned only so the output
 // layer can make sure neither ever appears in what turbine-cli prints.
-import { readFileSync, statSync } from "node:fs";
-
 import { privateKeyToAccount } from "viem/accounts";
 import type { PrivateKeyAccount } from "viem/accounts";
 
 import { CliError } from "../output/errors.ts";
 import { decryptKey } from "./keystore.ts";
+import { readPrivateFile } from "./private-file.ts";
 import { readWallet } from "./store.ts";
 import type { WalletRef } from "./store.ts";
 
@@ -24,22 +23,17 @@ type Unlocked = { account: PrivateKeyAccount; secrets: string[] };
 
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD_FILE_BYTES = 4096;
-const NOT_OWNER_ONLY = 0o077;
 
 function readPasswordFile(path: string, platform: NodeJS.Platform): string {
-  const params = { path };
-  let text: string;
-  try {
-    const stat = statSync(path);
-    if (!stat.isFile() || stat.size > MAX_PASSWORD_FILE_BYTES)
-      throw new CliError("PASSWORD_FILE_UNREADABLE", params);
-    if (platform !== "win32" && (stat.mode & NOT_OWNER_ONLY) !== 0)
-      throw new CliError("PASSWORD_FILE_TOO_OPEN", params);
-    text = readFileSync(path, "utf8");
-  } catch (error) {
-    if (error instanceof CliError) throw error;
-    throw new CliError("PASSWORD_FILE_UNREADABLE", params, { cause: error });
-  }
+  const text = readPrivateFile(path, {
+    maxBytes: MAX_PASSWORD_FILE_BYTES,
+    platform,
+    codes: {
+      unreadable: "PASSWORD_FILE_UNREADABLE",
+      tooOpen: "PASSWORD_FILE_TOO_OPEN",
+      invalid: "PASSWORD_FILE_UNREADABLE",
+    },
+  });
   // Editors and `echo` end files with a newline; it is never part of the password.
   return text.replace(/\r?\n$/, "");
 }

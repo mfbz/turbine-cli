@@ -17,7 +17,8 @@ function configReport(
   return {
     network: network.name,
     apiUrl: network.apiUrl,
-    rpcUrl: network.rpcUrl ?? null,
+    // The origin only: provider URLs carry an API key in the path or query.
+    rpcUrl: network.rpcUrl ? new URL(network.rpcUrl).origin : null,
     wallet: wallet
       ? { name: wallet.name, address: wallet.address, source: wallet.source }
       : null,

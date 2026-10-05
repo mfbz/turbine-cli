@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import pkg from "../package.json" with { type: "json" };
 import { run } from "./cli.ts";
 import type { Io } from "./cli.ts";
+import { decryptKey } from "./wallet/keystore.ts";
+import { findWallet, readWallet, walletDirs } from "./wallet/store.ts";
 
 const ANSI = /\u001b\[/;
 const roots: string[] = [];
@@ -223,6 +225,36 @@ describe("turbine wallet", () => {
     );
     expect(result.code).toBe(0);
     expect(result.doc().data).toMatchObject({ wallet: null, rpcUrl: null });
+  });
+});
+
+describe("review fixes", () => {
+  it("shows only the RPC endpoint's origin: provider URLs carry API keys in the path", async () => {
+    const env = {
+      TURBINE_RPC_URL: "https://eth-mainnet.example.com/v2/SECRETAPIKEY123?x=1",
+    };
+    const human = await capture(["config"], { env });
+    const json = await capture(["config", "--json"], { env });
+    expect(human.all + json.all).not.toContain("SECRETAPIKEY123");
+    expect(json.doc().data.rpcUrl).toBe("https://eth-mainnet.example.com");
+  });
+
+  it("shows help for a group of commands run without a subcommand", async () => {
+    const human = await capture(["wallet"]);
+    expect(human.out).toContain("new");
+    expect(
+      String((await capture(["wallet", "--json"])).doc().data.help)
+    ).toContain("import");
+  });
+
+  it("keeps a password from the shell exactly as given, spaces included", async () => {
+    const home = tempDir();
+    const env = { TURBINE_WALLET_PASSWORD: "  spaced pass  " };
+    await capture(["wallet", "new", "w1"], { env, home });
+    const ref = findWallet("w1", walletDirs({}, home, "darwin"));
+    await expect(
+      decryptKey(readWallet(ref, "darwin"), "  spaced pass  ")
+    ).resolves.toMatch(/^0x/);
   });
 });
 

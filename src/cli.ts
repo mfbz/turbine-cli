@@ -118,8 +118,12 @@ function buildProgram(
         if (output.json) captured.text += text;
         else io.stdout(text);
       },
-      // Usage errors are reported by output.fail, in the right format for --json or a person.
-      writeErr: () => {},
+      // Commander writes help here when a group (turbine wallet) runs without a subcommand; it's
+      // help, so it goes where help goes. Usage errors come through output.fail instead.
+      writeErr: (text) => {
+        if (output.json) captured.text += text;
+        else io.stdout(text);
+      },
       outputError: () => {},
     })
     .action((command) => {

@@ -100,6 +100,28 @@ describe("the keystore", () => {
     }
   });
 
+  it("refuses a keystore that asks for absurd work (huge scrypt p), so a hostile file can't hang turbine-cli", async () => {
+    const json = await encryptKey(generatePrivateKey(), "password1", FAST);
+    const hostile = {
+      ...json,
+      crypto: {
+        ...json.crypto,
+        kdfparams: { ...json.crypto.kdfparams, p: 100_000 },
+      },
+    };
+    expect((await rejection(decryptKey(hostile, "password1"))).code).toBe(
+      "WALLET_FILE_INVALID"
+    );
+  });
+
+  it("accepts geth's capitalised Crypto key", async () => {
+    const key = generatePrivateKey();
+    const { crypto, ...rest } = await encryptKey(key, "password1", FAST);
+    await expect(
+      decryptKey({ ...rest, Crypto: crypto }, "password1")
+    ).resolves.toBe(key);
+  });
+
   it("reads the Web3 Secret Storage PBKDF2 test vector (its MAC verifies)", async () => {
     const key = await decryptKey(SPEC_PBKDF2_VECTOR, "testpassword");
     expect(key).toMatch(/^0x[0-9a-f]{64}$/);

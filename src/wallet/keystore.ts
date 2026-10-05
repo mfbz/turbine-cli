@@ -59,6 +59,9 @@ const STANDARD_N = 262_144;
 // Upper bounds on what a file may ask for, so a hostile keystore can't exhaust memory or time.
 const MAX_SCRYPT_MEMORY = 1024 * 1024 * 1024;
 const MAX_PBKDF2_ROUNDS = 10_000_000;
+// scrypt's time grows with p as well; standard keystores use p = 1.
+const MAX_SCRYPT_P = 16;
+const MAX_SCRYPT_WORK = 4 * 128 * STANDARD_N * 8;
 
 const scryptAsync = promisify(scrypt) as (
   password: string,
@@ -89,7 +92,11 @@ async function derive(
   const salt = bytes(crypto.kdfparams.salt);
   if (crypto.kdf === "scrypt") {
     const { n, r, p } = crypto.kdfparams;
-    if (128 * n * r > MAX_SCRYPT_MEMORY)
+    if (
+      128 * n * r > MAX_SCRYPT_MEMORY ||
+      p > MAX_SCRYPT_P ||
+      128 * n * r * p > MAX_SCRYPT_WORK
+    )
       throw new CliError("WALLET_FILE_INVALID");
     try {
       return await scryptAsync(password, salt, 32, {
@@ -143,8 +150,15 @@ async function encryptKey(
   };
 }
 
+// geth writes "crypto" but has also written "Crypto", and reads either.
+function normalise(json: unknown): unknown {
+  if (typeof json !== "object" || json === null) return json;
+  const { Crypto, crypto, ...rest } = json as Record<string, unknown>;
+  return { ...rest, crypto: crypto ?? Crypto };
+}
+
 async function decryptKey(json: unknown, password: string): Promise<Hex> {
-  const parsed = KEYSTORE.safeParse(json);
+  const parsed = KEYSTORE.safeParse(normalise(json));
   if (!parsed.success) throw new CliError("WALLET_FILE_INVALID");
   const { crypto } = parsed.data;
   const derived = await derive(password, crypto);

@@ -3,10 +3,9 @@
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
-  readFileSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -15,6 +14,7 @@ import { getAddress } from "viem";
 
 import { CliError } from "../output/errors.ts";
 import type { Keystore } from "./keystore.ts";
+import { readPrivateFile } from "./private-file.ts";
 import type { Hex } from "./signer.ts";
 
 type WalletSource = "turbine" | "foundry";
@@ -26,12 +26,16 @@ type WalletRef = {
   address: Hex | null;
 };
 
-// Letters, digits, - and _: a name can never become a path.
-const NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/;
+// Letters, digits, ".", "-" and "_", starting with a letter or digit and never "..": a name can
+// never become a path. Wide enough for Foundry's names, including cast's UUIDs.
+const NAME = /^(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 // A keystore is under 1 KB; anything much bigger isn't one.
 const MAX_FILE_BYTES = 64 * 1024;
-// Group and others: any of their read, write or execute bits.
-const NOT_OWNER_ONLY = 0o077;
+const INVALID = {
+  unreadable: "WALLET_FILE_INVALID",
+  tooOpen: "WALLET_FILE_TOO_OPEN",
+  invalid: "WALLET_FILE_INVALID",
+} as const;
 
 function walletDirs(
   env: Record<string, string | undefined>,
@@ -54,9 +58,13 @@ function checkName(name: string): void {
 
 function declaredAddress(path: string): Hex | null {
   try {
-    if (statSync(path).size > MAX_FILE_BYTES) return null;
-    const json: unknown = JSON.parse(readFileSync(path, "utf8"));
-    const address = (json as { address?: unknown }).address;
+    // Listing never needs the owner-only check; it reads the public address field only.
+    const text = readPrivateFile(path, {
+      maxBytes: MAX_FILE_BYTES,
+      platform: "win32",
+      codes: INVALID,
+    });
+    const address = (JSON.parse(text) as { address?: unknown }).address;
     return typeof address === "string" &&
       /^(?:0x)?[0-9a-fA-F]{40}$/.test(address)
       ? getAddress(`0x${address.replace(/^0x/, "")}`)
@@ -68,20 +76,24 @@ function declaredAddress(path: string): Hex | null {
 
 function refsIn(dir: string, source: WalletSource): WalletRef[] {
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .map((file) => ({
-      file,
-      name: source === "turbine" ? file.replace(/\.json$/, "") : file,
-    }))
-    .filter(
-      ({ file, name }) =>
-        NAME.test(name) && (source === "foundry" || file.endsWith(".json"))
-    )
-    .map(({ file, name }) => {
-      const path = join(dir, file);
-      return { name, source, path, address: declaredAddress(path) };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    readdirSync(dir)
+      .map((file) => ({
+        file,
+        name: source === "turbine" ? file.replace(/\.json$/, "") : file,
+      }))
+      .filter(
+        ({ file, name }) =>
+          NAME.test(name) && (source === "foundry" || file.endsWith(".json"))
+      )
+      // Only regular files: a link could point at any file on the computer.
+      .filter(({ file }) => lstatSync(join(dir, file)).isFile())
+      .map(({ file, name }) => {
+        const path = join(dir, file);
+        return { name, source, path, address: declaredAddress(path) };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+  );
 }
 
 function listWallets(dirs: WalletDirs): WalletRef[] {
@@ -99,18 +111,33 @@ function findWallet(name: string, dirs: WalletDirs): WalletRef {
 }
 
 function readWallet(ref: WalletRef, platform: NodeJS.Platform): unknown {
-  const params = { path: ref.path };
-  const stat = statSync(ref.path);
-  // A pipe would block forever and a huge file would fill memory; a keystore is a small regular file.
-  if (!stat.isFile() || stat.size > MAX_FILE_BYTES)
-    throw new CliError("WALLET_FILE_INVALID", params);
-  // Windows has no POSIX modes; NTFS permissions are the user's to set.
-  if (platform !== "win32" && (stat.mode & NOT_OWNER_ONLY) !== 0)
-    throw new CliError("WALLET_FILE_TOO_OPEN", params);
+  const text = readPrivateFile(ref.path, {
+    maxBytes: MAX_FILE_BYTES,
+    platform,
+    codes: INVALID,
+  });
   try {
-    return JSON.parse(readFileSync(ref.path, "utf8")) as unknown;
+    return JSON.parse(text) as unknown;
   } catch (error) {
-    throw new CliError("WALLET_FILE_INVALID", params, { cause: error });
+    throw new CliError(
+      "WALLET_FILE_INVALID",
+      { path: ref.path },
+      { cause: error }
+    );
+  }
+}
+
+function prepareFolder(dir: string): void {
+  const params = { path: dir };
+  try {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    // A link here would let chmod and the save land somewhere else.
+    if (!lstatSync(dir).isDirectory())
+      throw new CliError("WALLET_STORAGE_FAILED", params);
+    chmodSync(dir, 0o700);
+  } catch (error) {
+    if (error instanceof CliError) throw error;
+    throw new CliError("WALLET_STORAGE_FAILED", params, { cause: error });
   }
 }
 
@@ -120,8 +147,7 @@ function saveWallet(
   dirs: WalletDirs
 ): string {
   checkName(name);
-  mkdirSync(dirs.turbine, { recursive: true, mode: 0o700 });
-  chmodSync(dirs.turbine, 0o700);
+  prepareFolder(dirs.turbine);
   const path = join(dirs.turbine, `${name}.json`);
   try {
     // "wx": create only. An existing wallet is never overwritten, even by a race.
@@ -132,7 +158,11 @@ function saveWallet(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST")
       throw new CliError("WALLET_EXISTS", { name }, { cause: error });
-    throw error;
+    throw new CliError(
+      "WALLET_STORAGE_FAILED",
+      { path: dirs.turbine },
+      { cause: error }
+    );
   }
   return path;
 }

@@ -37,9 +37,10 @@ function variableFor(field: PropertyKey | undefined): string {
 function readEnv(source: Source): Env {
   const raw: Record<string, string> = {};
   for (const [variable, field] of Object.entries(VARIABLES)) {
-    const value = source[variable]?.trim();
-    // An empty value means unset.
-    if (value) raw[field] = value;
+    const value = source[variable];
+    // An empty value means unset. A password is kept exactly as given; anything else is trimmed.
+    if (value?.trim())
+      raw[field] = field === "walletPassword" ? value : value.trim();
   }
   const parsed = SCHEMA.safeParse(raw);
   if (!parsed.success) {

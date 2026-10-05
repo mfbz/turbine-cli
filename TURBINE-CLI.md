@@ -66,7 +66,7 @@ Output rules:
 - With `--json`, a command prints exactly one JSON document on stdout, errors included: `{ "ok": true, "data": … }` or `{ "ok": false, "error": { "code", "message", "hint"? } }`. Nothing else goes to stdout, and a failure still exits non-zero. Token amounts are strings, so no precision is lost.
 - Human output uses colour and motion only in an interactive terminal. It respects `NO_COLOR` and stays plain when piped. How it looks: [DESIGN.md](DESIGN.md).
 - Without `--json`, errors go to stderr, with a non-zero exit code.
-- Exit codes: `0` done, `1` failed, `2` usage error (an unknown command or flag, a bad value), `130` interrupted.
+- Exit codes: `0` done, `1` failed, `2` usage error (an unknown command or flag, a bad value), `130` interrupted (Ctrl-C, including at a prompt).
 - Error messages and hints come only from turbine-cli's catalogue (stable `code`s for agents to branch on, plus `retryable`). An unknown API error is `API_REJECTED`, with the API's code in `upstreamCode` only if it is a plain `SCREAMING_SNAKE` word. `--debug` adds the error's class and stack frames on stderr, never in the `--json` document and never values.
 - A private key typed as an argument is refused (`KEY_IN_ARGV`, exit 2) without being echoed. The key and the wallet password never appear in any output. Text from the Turbine API is stripped of control characters before it reaches a terminal.
 
@@ -89,7 +89,7 @@ Shows what turbine-cli will use: the network, the Turbine API, the RPC endpoint,
 }
 ```
 
-`wallet` is `null` when there is no wallet yet; `address` is the one its keystore declares (the wallet isn't unlocked to show it); `source` is `turbine` or `foundry`. A wallet asked for by name (`--account`, `TURBINE_ACCOUNT`) must exist.
+`rpcUrl` is the endpoint's origin only (provider URLs carry an API key in the path). `wallet` is `null` when there is no wallet yet; `address` is the one its keystore declares (the wallet isn't unlocked to show it); `source` is `turbine` or `foundry`. A wallet asked for by name (`--account`, `TURBINE_ACCOUNT`) must exist.
 
 Status: done.
 
@@ -108,7 +108,7 @@ Wallets are encrypted keystores in the standard Web3 Secret Storage format (scry
 - `turbine wallet new [name]`: a fresh wallet (the easiest start on the playground). Asks for a password twice in a terminal; for scripts, `--password-file` or `TURBINE_WALLET_PASSWORD`. Passwords have at least 8 characters.
 - `turbine wallet import [name]`: brings a wallet you have. The private key is typed into a hidden prompt, in a terminal only; it is never taken from an argument, a variable or piped input.
 - `turbine wallet list`: names, addresses and where each lives.
-- `[name]` defaults to `default`; names use letters, digits, `-` and `_`. A wallet is never overwritten.
+- `[name]` defaults to `default`; names use letters, digits, `.`, `-` and `_` (up to 64, as Foundry's do). A wallet is never overwritten, and a wallet file or wallets folder that is a link is refused.
 - Other commands pick the wallet with `--account <name>` or `TURBINE_ACCOUNT`, and unlock it with the hidden prompt, `--password-file <file>` (chmod 600) or `TURBINE_WALLET_PASSWORD` from the shell. Without a terminal and without a password they fail at once (`PASSWORD_REQUIRED`) rather than wait.
 
 `--json` data: `new` and `import` return `{ "name", "address", "path" }`; `list` returns `[{ "name", "address", "source", "path" }]`.
