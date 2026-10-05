@@ -10,7 +10,7 @@ What it does and how it behaves, command by command, is in [TURBINE-CLI.md](TURB
 
 ## Safety first
 
-- **Playground by default.** Turbine's playground simulates fills: no real funds move. Mainnet needs `--network mainnet` and a confirmation for anything signed.
+- **Playground by default.** Turbine's playground simulates fills: no real funds move. Mainnet needs `--network mainnet` and a confirmation before any order, cancel or approval.
 - **`--dry-run` everywhere.** See the exact typed data a wallet would sign, or the exact transaction, without signing or sending anything.
 - **Your key stays encrypted.** Wallets are Web3 Secret Storage keystores (the format Foundry and geth use), unlocked with a password. A key is never read from an argument, an environment variable or a file, and anything that looks like one on the command line is refused.
 - **Errors say what to do, never more.** Every error is one of a fixed catalogue with a stable code and a hint; raw upstream text, stack traces and secrets never reach the output.
@@ -71,6 +71,26 @@ turbine ladder 10 WETH --for USDC --levels 5 --from -10 --to 30 --ttl 4h --dry-r
 ```
 
 That is five orders of 2 WETH at -10, 0, 10, 20 and 30 bps. The summary lists every level and what each signs, and all of them go to Turbine in one batch.
+
+## Try it without Turbine
+
+`npm run mock` starts a local stand-in for Turbine's playground on `127.0.0.1:4646`: tokens and quotes, signed orders through the real SDK, fills that arrive over about 20 seconds, cancels after a 12-second Speedbump, and a mid price that drifts. It is for demos and development when the playground is out of reach, and never part of the package.
+
+```sh
+npm run mock                                       # terminal 1
+
+export TURBINE_API_URL=http://127.0.0.1:4646/api   # terminal 2
+export TURBINE_RPC_URL=http://127.0.0.1:4646/rpc
+turbine wallet new demo
+turbine --account demo ladder 3 WETH --for USDC --levels 3 --from -10 --to 30 --ttl 1h
+turbine --account demo orders
+turbine --account demo order watch 0x…             # fills arrive; q to stop, c to cancel
+turbine --account demo order cancel 0x…            # the -10 bps level waits: cancel it
+```
+
+To the mock, every wallet holds no tokens and has Permit2 approved, so summaries warn about the balance and nothing else. Orders fill in three steps, never below their limit and never after they end; finished orders can't be cancelled. It doesn't verify signatures: it shows turbine-cli's side of the flow, not Turbine's checks or matching.
+
+What a wallet signs there is the same Ethereum data a real order would (Turbine's settler, chain 1), and it never leaves your computer. Use a fresh wallet anyway, as on the playground.
 
 ## Scripts and agents
 
