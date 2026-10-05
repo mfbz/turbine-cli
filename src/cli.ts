@@ -21,7 +21,16 @@ import type { TurbineApi } from "./turbine/api.ts";
 import { createHttpApi } from "./turbine/http.ts";
 import { createChain } from "./turbine/chain.ts";
 import type { Chain } from "./turbine/chain.ts";
-import type { submitCancel, submitOrder } from "./turbine/sdk-orders.ts";
+import type {
+  listOrders,
+  openOrderReader,
+  submitCancel,
+  submitOrder,
+} from "./turbine/sdk-orders.ts";
+import { orderReport, parseStatuses, renderOrders } from "./commands/orders.ts";
+import { cancelCommand, checkHash, renderCancel } from "./commands/cancel.ts";
+import { watchOrder } from "./commands/watch.ts";
+import { priceOf } from "./turbine/amounts.ts";
 import { approveCommand, renderApprove } from "./commands/approve.ts";
 import { placeCommand, renderPlaced, renderSummary } from "./commands/place.ts";
 import { unlockWallet } from "./wallet/signer.ts";
@@ -35,7 +44,7 @@ import type { StreamLike } from "./output/terminal.ts";
 import { createTheme } from "./output/theme.ts";
 import type { Cursor } from "./ui/cursor.ts";
 import { headerSize, playHeader } from "./ui/header.ts";
-import type { Prompter } from "./wallet/signer.ts";
+import type { Prompter, Unlocked } from "./wallet/signer.ts";
 import { findWallet, walletDirs } from "./wallet/store.ts";
 import type { WalletRef } from "./wallet/store.ts";
 
@@ -59,11 +68,17 @@ type Io = {
   chain?: (network: NetworkConfig) => Chain;
   // Test-only: placing and cancelling through the SDK.
   orders?: {
+    listOrders: typeof listOrders;
+    openOrderReader: typeof openOrderReader;
     submitOrder: typeof submitOrder;
     submitCancel: typeof submitCancel;
   };
   // Test-only: the clock, in seconds.
   now?: () => number;
+  // Test-only: waiting between polls.
+  sleep?: (ms: number) => Promise<void>;
+  // The keyboard for live views: calls back on each key until stopped (main.ts uses raw mode).
+  keys?: (handler: (key: string) => void) => () => void;
 };
 type GlobalOptions = {
   network?: string;
@@ -93,6 +108,23 @@ const USAGE_CODES: Readonly<Record<string, ErrorCode>> = {
 // Anything shaped like a private key, anywhere in what was typed.
 const KEY_SHAPED = /(?:^|[^0-9a-fA-F])(?:0x)?[0-9a-fA-F]{64}(?![0-9a-fA-F])/;
 const OPTION_NAME = /'(--?[a-z][a-z0-9-]{0,30})/;
+
+// The one place a 64-hex value is expected: the order hash after `order cancel` or `order watch`, in
+// its 0x form. Everywhere else such a value is refused as a possible private key.
+const ORDER_HASH = /^0x[0-9a-fA-F]{64}$/;
+const HASH_COMMANDS = new Set(["cancel", "watch"]);
+
+function isOrderHash(argv: readonly string[], index: number): boolean {
+  if (!ORDER_HASH.test(argv[index] ?? "")) return false;
+  // Exactly the hash position: `order cancel <hash>` or `order watch <hash>`, after global flags
+  // without values at most. Anywhere else the value is refused.
+  const order = argv.findIndex((arg) => !arg.startsWith("-"));
+  return (
+    argv[order] === "order" &&
+    HASH_COMMANDS.has(argv[order + 1] ?? "") &&
+    index === order + 2
+  );
+}
 
 function isCommanderError(error: unknown): error is { code: string } {
   const code: unknown =
@@ -231,6 +263,15 @@ function buildProgram(
   // The SDK loads only when a command signs: every other command starts fast without it, and runs from
   // source too (Node can't strip types inside node_modules, where the SDK keeps its TypeScript).
   const orders = io.orders ?? {
+    listOrders: async (...args: Parameters<typeof listOrders>) =>
+      (await import("./turbine/sdk-orders.ts")).listOrders(...args),
+    // One connection per watch: the reader is opened on first use, from the lazily loaded SDK.
+    openOrderReader: (...args: Parameters<typeof openOrderReader>) => {
+      const reader = import("./turbine/sdk-orders.ts").then((sdk) =>
+        sdk.openOrderReader(...args)
+      );
+      return { list: async (query) => (await reader).list(query) };
+    },
     submitOrder: async (...args: Parameters<typeof submitOrder>) =>
       (await import("./turbine/sdk-orders.ts")).submitOrder(...args),
     submitCancel: async (...args: Parameters<typeof submitCancel>) =>
@@ -309,6 +350,130 @@ function buildProgram(
       }
     );
     output.result(result, (theme) => renderApprove(result, theme));
+  };
+
+  const showOrders = async (filters: { status?: string; max?: string }) => {
+    const statuses = filters.status ? parseStatuses(filters.status) : undefined;
+    const max = filters.max === undefined ? 20 : Number(filters.max);
+    if (!Number.isInteger(max) || max < 1 || max > 200)
+      throw new CliError("USAGE_INVALID_VALUE", { option: "--max" });
+    const wallet = signingWallet();
+    const info = await api().info();
+    const { account } = await wallet.unlock();
+    if (account.address.toLowerCase() !== wallet.address.toLowerCase())
+      throw new CliError("WALLET_ADDRESS_MISMATCH");
+    const states = await orders.listOrders(
+      account,
+      info.settler,
+      { ...(statuses ? { statuses } : {}), limit: max },
+      { network: network() }
+    );
+    const reports = states.map((o) => orderReport(o, info.tokens, now()));
+    output.result(reports, (theme) => renderOrders(reports, theme));
+  };
+  const watch = async (hashText: string) => {
+    const hash = checkHash(hashText);
+    const wallet = signingWallet();
+    const info = await api().info();
+    const { account } = await wallet.unlock();
+    if (account.address.toLowerCase() !== wallet.address.toLowerCase())
+      throw new CliError("WALLET_ADDRESS_MISMATCH");
+    const reader = orders.openOrderReader(account, info.settler, {
+      network: network(),
+    });
+    const fetchState = async () => {
+      const [state] = await reader.list({ hashes: [hash] });
+      if (!state) throw new CliError("ORDER_NOT_FOUND");
+      return orderReport(state, info.tokens, now());
+    };
+    const first = await fetchState();
+    const sell = info.tokens.find((t) => t.address === first.sell?.address);
+    const buy = info.tokens.find((t) => t.address === first.buy?.address);
+    // The mid for one whole sell token: the price, not this order's amounts.
+    const fetchMid = async () =>
+      sell && buy
+        ? priceOf(
+            (
+              await api().quote(
+                sell.address,
+                buy.address,
+                10n ** BigInt(sell.decimals)
+              )
+            ).mid,
+            sell.decimals,
+            buy.decimals
+          )
+        : null;
+    const terminal = detectTerminal(io.stdoutInfo, io.env, { motion: true });
+    // The live view needs the keyboard as well as the screen: stdin must be a terminal too.
+    const mode = output.json
+      ? "json"
+      : terminal.tty && io.interactive && io.keys
+        ? "screen"
+        : "lines";
+    let pending: typeof first | undefined = first;
+    if (mode === "screen") {
+      // The alternate screen keeps the shell's scrollback; the summary goes to the normal one after.
+      io.stdout("\u001b[?1049h");
+      io.cursor?.hide();
+    }
+    let outcome;
+    try {
+      outcome = await watchOrder({
+        fetchState: () => {
+          const ready = pending;
+          pending = undefined;
+          return ready ? Promise.resolve(ready) : fetchState();
+        },
+        fetchMid,
+        sleep:
+          io.sleep ??
+          ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
+        ...(mode === "screen" && io.keys ? { onKey: io.keys } : {}),
+        mode,
+        write: io.stdout,
+        theme: output.theme,
+        width: () => io.stdoutInfo.columns || 80,
+        now,
+      });
+    } finally {
+      if (mode === "screen") {
+        io.cursor?.show();
+        io.stdout("\u001b[?1049l");
+      }
+    }
+    if (outcome.kind === "cancel") {
+      // A single keypress shouldn't cancel without a word: ask, whatever the network.
+      const sure = await confirm(`Cancel order ${hash}?`);
+      if (sure !== true) return;
+      return cancelOrder(hash, account);
+    }
+    if (outcome.kind === "interrupted") throw new CliError("CANCELLED");
+    if (mode === "screen")
+      output.note(
+        outcome.kind === "done"
+          ? `Order ${hash} is ${outcome.status.toLowerCase()}.`
+          : `Stopped watching ${hash}; the order carries on.`
+      );
+  };
+
+  const cancelOrder = async (hash: string, unlocked?: Unlocked["account"]) => {
+    const wallet = signingWallet();
+    const result = await cancelCommand(hash, {
+      network: network(),
+      wallet: { address: wallet.address },
+      settler: async () => (await api().info()).settler,
+      dryRun: options().dryRun === true,
+      yes: options().yes === true,
+      interactive: io.interactive,
+      confirm,
+      // From the watch view the wallet is already unlocked; don't ask for the password again.
+      unlock: unlocked
+        ? () => Promise.resolve({ account: unlocked, secrets: [] })
+        : wallet.unlock,
+      submit: orders.submitCancel,
+    });
+    output.result(result, (theme) => renderCancel(result, theme));
   };
 
   const showTokens = async () => {
@@ -417,6 +582,18 @@ function buildProgram(
           hint: "once per token, an Ethereum transaction",
           run: async () => approve(await ask(prompter, "Which token?", "WETH")),
         },
+        { value: "orders", label: "My orders", run: () => showOrders({}) },
+        {
+          value: "watch",
+          label: "Watch an order",
+          run: async () => watch(await ask(prompter, "Order hash (0x…)", "")),
+        },
+        {
+          value: "cancel",
+          label: "Cancel an order",
+          run: async () =>
+            cancelOrder(await ask(prompter, "Order hash (0x…)", "")),
+        },
         { value: "tokens", label: "Supported tokens", run: showTokens },
         {
           value: "config",
@@ -513,9 +690,32 @@ function buildProgram(
     .option("--amount <amount>", "approve only this much (default: unlimited)")
     .action((token, opts) => approve(token, opts.amount));
 
+  program
+    .command("orders")
+    .description("the wallet's orders, newest first")
+    .option(
+      "--status <list>",
+      "only these: active, filled, expired, cancelled, cancelling, invalid"
+    )
+    .option("--max <n>", "at most this many (1–200, default 20)")
+    .action(showOrders);
+
   const order = program
     .command("order")
     .description("place, watch and cancel orders");
+  order
+    .command("watch")
+    .description("follow an order live until it is done")
+    .argument("<hash>", "the order's hash, from turbine orders")
+    .action(watch);
+  order
+    .command("cancel")
+    .description(
+      "cancel an order (Turbine applies it after the Speedbump, about 12 s)"
+    )
+    .argument("<hash>", "the order's hash, from turbine orders")
+    // Wrapped: commander passes its options as a second argument, which isn't an unlocked wallet.
+    .action((hash) => cancelOrder(hash));
   order
     .command("place")
     .description("place a spread order that tracks the mid price")
@@ -585,7 +785,7 @@ async function run(argv: string[], io: Io): Promise<number> {
   });
   // A key typed as an argument is already in the shell's history; refuse it before anything else
   // can echo it, and say what to do.
-  if (argv.some((arg) => KEY_SHAPED.test(arg)))
+  if (argv.some((arg, i) => KEY_SHAPED.test(arg) && !isOrderHash(argv, i)))
     return output.fail(new CliError("KEY_IN_ARGV"));
   const captured: Captured = { text: "" };
   try {

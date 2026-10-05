@@ -31,6 +31,8 @@ type Options = {
   texts?: string[];
   home?: string;
   chain?: Partial<{ balance: bigint; allowance: bigint; fail: boolean }>;
+  // What listing the wallet's orders returns, call after call (the last one repeats).
+  listed?: unknown[];
 };
 
 afterEach(() => {
@@ -45,6 +47,20 @@ function tempDir(): string {
 }
 
 const PLACED = `0x${"cd".repeat(32)}` as const;
+const FILLED = {
+  hash: `0x${"cd".repeat(32)}` as const,
+  status: "Filled",
+  executedSellAmount: 0n,
+  executedBuyAmount: 0n,
+  execution: [],
+};
+const LISTED = {
+  hash: PLACED,
+  status: "Active",
+  executedSellAmount: 0n,
+  executedBuyAmount: 0n,
+  execution: [],
+};
 let sentTransactions: string[] = [];
 let signers: string[] = [];
 
@@ -91,6 +107,7 @@ async function capture(argv: string[], options: Options = {}) {
   const choices = [...(options.choices ?? [])];
   const confirms = [...(options.confirms ?? [])];
   const texts = [...(options.texts ?? [])];
+  const listed = [...(options.listed ?? [])];
   const io: Io = {
     stdout: (text) => (out += text),
     stderr: (text) => (err += text),
@@ -112,12 +129,29 @@ async function capture(argv: string[], options: Options = {}) {
     api: () => createFakeApi(),
     chain: () => fakeChain(options.chain),
     orders: {
+      openOrderReader: () => ({
+        list: () => {
+          if (!options.listed) return Promise.resolve([LISTED]);
+          const next = listed.length > 1 ? listed.shift() : listed[0];
+          return Promise.resolve(
+            next === undefined ? [] : [next as typeof LISTED]
+          );
+        },
+      }),
+      listOrders: () => {
+        if (!options.listed) return Promise.resolve([LISTED]);
+        const next = listed.length > 1 ? listed.shift() : listed[0];
+        return Promise.resolve(
+          next === undefined ? [] : [next as typeof LISTED]
+        );
+      },
       submitOrder: (_plan, signer: Signer) =>
         Promise.resolve(submitted(signer, "order")),
       submitCancel: (_hash, _settler, signer: Signer) =>
         Promise.resolve(submitted(signer, "cancel")),
     },
     now: () => 1_800_000_000,
+    sleep: () => Promise.resolve(),
   };
   const code = await run(argv, io);
   return { code, out, err, all: out + err, doc: () => JSON.parse(out) as Doc };
@@ -561,6 +595,100 @@ describe("turbine order place", () => {
       { home, env }
     );
     expect(bad.doc().error.code).toBe("TTL_TOO_SHORT");
+  });
+});
+
+describe("turbine orders and turbine order cancel", () => {
+  it("lists the wallet's orders after unlocking it", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const result = await capture(["orders", "--status", "active", "--json"], {
+      home,
+      env,
+    });
+    expect(result.doc().data).toEqual([
+      expect.objectContaining({ hash: PLACED, status: "Active" }),
+    ]);
+    expect(
+      (
+        await capture(["orders", "--status", "open", "--json"], { home, env })
+      ).doc().error.code
+    ).toBe("STATUS_UNKNOWN");
+  });
+
+  it("cancels by hash: an order hash isn't mistaken for a key", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const dry = await capture(
+      ["order", "cancel", PLACED, "--dry-run", "--json"],
+      { home, env }
+    );
+    expect(dry.code).toBe(0);
+    expect(dry.doc().data).toMatchObject({ dryRun: true, hash: PLACED });
+    const sent = await capture(["order", "cancel", PLACED, "--json"], {
+      home,
+      env,
+    });
+    expect(sent.doc().data).toMatchObject({ status: "cancelling" });
+    const bad = await capture(["order", "cancel", "0x1234", "--json"], {
+      home,
+      env,
+    });
+    expect(bad.doc().error.code).toBe("HASH_INVALID");
+  });
+
+  it("still refuses a key-shaped value anywhere else", async () => {
+    const result = await capture([
+      "order",
+      "place",
+      PLACED.slice(2),
+      "WETH",
+      "--json",
+    ]);
+    expect(result.doc().error.code).toBe("KEY_IN_ARGV");
+  });
+
+  it("watches an order until it is done: NDJSON with --json, plain lines when piped", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const json = await capture(["order", "watch", PLACED, "--json"], {
+      home,
+      env,
+      listed: [LISTED, FILLED],
+    });
+    const events = json.out
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as { type: string });
+    expect(events.map((e) => e.type)).toEqual(["state", "final"]);
+    expect(json.code).toBe(0);
+    const lines = await capture(["order", "watch", PLACED], {
+      home,
+      env,
+      listed: [LISTED, FILLED],
+    });
+    expect(lines.out).toMatch(/active[\s\S]*filled/);
+  });
+
+  it("says so when the order isn't the wallet's", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const result = await capture(["order", "watch", PLACED, "--json"], {
+      home,
+      env,
+      listed: [],
+    });
+    expect(result.doc().error.code).toBe("ORDER_NOT_FOUND");
+  });
+
+  it("asks before cancelling on mainnet", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const refused = await capture(
+      ["order", "cancel", PLACED, "--network", "mainnet", "--json"],
+      { home, env }
+    );
+    expect(refused.doc().error.code).toBe("CONFIRMATION_REQUIRED");
   });
 });
 

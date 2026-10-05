@@ -4,6 +4,7 @@
 // signature, which the SDK makes just before sending. So a dry run shows exactly what would be signed,
 // and nothing can be sent.
 import { getRandomSalt, spreads, TurbineClient } from "turbine-sdk";
+import type { GetOrdersOptions, OrderState } from "turbine-sdk";
 import {
   createPublicClient,
   createWalletClient,
@@ -216,5 +217,36 @@ async function submitCancel(
   );
 }
 
-export { submitCancel, submitOrder };
+/** The wallet's orders. In signed-request mode even reading them is a signed query, so it needs the key. */
+async function listOrders(
+  account: Account,
+  settler: Hex,
+  query: GetOrdersOptions,
+  deps: SdkDeps
+): Promise<OrderState[]> {
+  const client = await quietly(() => connect(account, deps, settler));
+  const { orders } = await quietly(() => client.getOrders(query));
+  return orders;
+}
+
+/** Reads the wallet's orders again and again over one connection, so the SDK's caches keep working. */
+function openOrderReader(account: Account, settler: Hex, deps: SdkDeps) {
+  let client: Promise<TurbineClient> | undefined;
+  return {
+    async list(query: GetOrdersOptions): Promise<OrderState[]> {
+      const connecting = (client ??= quietly(() =>
+        connect(account, deps, settler)
+      ));
+      // A failed connection isn't kept: the next poll tries again.
+      connecting.catch(() => {
+        if (client === connecting) client = undefined;
+      });
+      const connected = await connecting;
+      const { orders } = await quietly(() => connected.getOrders(query));
+      return orders;
+    },
+  };
+}
+
+export { listOrders, openOrderReader, submitCancel, submitOrder };
 export type { SdkDeps, SignRequest, Signer, Submitted };

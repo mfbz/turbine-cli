@@ -34,6 +34,20 @@ process.exitCode = await run(process.argv.slice(2), {
   interactive:
     process.stdin.isTTY && process.stdout.isTTY && process.stderr.isTTY,
   cursor,
+  // Key by key while a live view runs; the terminal is put back however the view ends.
+  keys(handler) {
+    const onData = (chunk: Buffer) => {
+      for (const key of chunk.toString("utf8")) handler(key);
+    };
+    process.stdin.setRawMode(true);
+    process.stdin.on("data", onData);
+    process.stdin.resume();
+    return () => {
+      process.stdin.off("data", onData);
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+    };
+  },
   // Prompts draw on stderr: stdout is only for the result (one --json document). A cancelled prompt
   // (Ctrl-C, Esc) is undefined.
   prompter: {

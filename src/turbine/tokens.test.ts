@@ -1,3 +1,4 @@
+import { getAddress } from "viem";
 import { describe, expect, it } from "vitest";
 
 import { CliError } from "../output/errors.ts";
@@ -12,7 +13,7 @@ const TOKENS: Token[] = [
     tokenClass: "Regular",
   },
   {
-    address: "0xA0b86991c6218b36c1D19D4a2e9Eb0cE3606eB48",
+    address: getAddress("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
     symbol: "USDC",
     decimals: 6,
     tokenClass: "Stable",
