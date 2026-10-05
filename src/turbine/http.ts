@@ -12,12 +12,14 @@ type Fetch = typeof globalThis.fetch;
 
 const TIMEOUT_MS = 10_000;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
-// The contracts Turbine publishes for mainnet (docs.turbine.exchange, "Contract Addresses"). The
-// API's config decides who the wallet's Permit2 allowances are for, so on mainnet it must agree.
+// Turbine's current mainnet contracts. The API's config decides who the wallet's Permit2 allowances are
+// for, so on mainnet it must agree with these. Turbine redeploys now and then (the SDK's
+// migrate-liquidity script lists the retired settlers): a new deployment means updating these, after
+// checking the API serves it and it is onchain, never trusting whatever the API says.
 const PINNED: Partial<Record<NetworkName, { settler: Hex; lpRouter: Hex }>> = {
   mainnet: {
-    settler: getAddress("0x2aadb59279619cb33d34ad1a3696e23a2effb394"),
-    lpRouter: getAddress("0x769ead430c4d613ef1852a3c7b88371588602bcf"),
+    settler: getAddress("0x5964336d54486f70b6a05b7825021427d99a0e16"),
+    lpRouter: getAddress("0xe5b67a998b73c5a5817f56c22b433c4642b7262a"),
   },
 };
 
