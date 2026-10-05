@@ -25,7 +25,7 @@ describe("agent instructions", () => {
     expect(readRepoFile("CLAUDE.md").split("\n")[0]).toBe("@AGENTS.md");
   });
 
-  it.each(["AGENTS.md", "CONTRIBUTING.md"])(
+  it.each(["AGENTS.md", "CONTRIBUTING.md", "README.md"])(
     "%s names only npm scripts that exist",
     (file) => {
       const named = [...readRepoFile(file).matchAll(/npm run ([a-z:-]+)/g)]

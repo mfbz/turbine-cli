@@ -12,6 +12,7 @@ Thanks for helping. turbine-cli is built by people and by coding agents, with th
 npm run check             # format:check, lint, typecheck, test: must be green before a PR
 npm run cli -- --help     # run the CLI from source
 npm run build             # bundle to dist/main.mjs
+npm run smoke:playground  # reads and dry runs against the live playground; signs nothing
 ```
 
 ## How work happens
@@ -30,6 +31,7 @@ Coding agents (Claude Code, Codex and others) read [AGENTS.md](AGENTS.md) and th
 - `npm run check` is green; CI's `ci` check is green (including the packed CLI installed and run on Linux, macOS and Windows).
 - Anything that signs or sends has a `--dry-run` path and a test that it signs nothing in that mode.
 - No key, seed phrase or token appears in any output, log or error (tests assert it).
+- A change to how turbine-cli talks to Turbine passes `npm run smoke:playground` (with a playground wallet, so the dry runs run too).
 - The README and any doc the change makes wrong are updated.
 
 ## Guards

@@ -44,7 +44,8 @@
     "build": "tsdown",
     "cli": "tsdown --log-level warn && node dist/main.mjs",
     "prepack": "npm run build",
-    "logo:build": "node scripts/build-logo.ts"
+    "logo:build": "node scripts/build-logo.ts",
+    "smoke:playground": "tsdown --log-level warn && node scripts/smoke-playground.ts"
   },
   "devDependencies": {
     "@resvg/resvg-js": "2.6.2",
