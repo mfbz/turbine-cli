@@ -76,7 +76,7 @@ Flags, the `--json` shape and acceptance checks are added to each command here w
 
 ### `turbine` (the interactive session)
 
-`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: get a quote, supported tokens, show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
+`turbine` with no arguments, in a terminal, opens the session: Turbine's logo with the mark turning (DESIGN.md, "The header"), then a menu of the same actions the direct commands run. Today: get a quote, place an order, approve a token, supported tokens, show my setup, my wallets, create or import a wallet, switch network. Each command that lands adds its own entry.
 
 - Switching to mainnet asks for confirmation first; the header and every summary name the network.
 - An action that fails shows its error and returns to the menu; Ctrl-C or Esc at the menu quits.
@@ -192,17 +192,39 @@ Acceptance:
 - [x] Turbine's answers are validated; 502–504 read as unavailable, 501 as quoting switched off, an unreachable network as retryable; Turbine's error text is never shown (`src/turbine/http.test.ts`).
 - [x] On mainnet, a config naming contracts other than Turbine's published settler and router is refused (`src/turbine/http.test.ts`).
 
-### `turbine approve <token>`
+### `turbine approve <token> [--amount <amount>]`
 
-The one-time ERC-20 approval that lets Permit2 move a token you sell; orders need it before they can settle.
+The one-time ERC-20 approval that lets Permit2 (Uniswap's `0x000000000022D473030F116dDEE9F6B43aC78BA3`) move a token you sell; orders can't settle without it. It is an **Ethereum transaction**, paid in ETH gas, whichever `--network` you use, so it always asks first: a confirmation in a terminal, or `--yes` without one. `--dry-run` shows the exact transaction instead. Unlimited by default (as Permit2 is designed for); `--amount` approves only that much. Nothing is sent when the allowance is already enough. USDT, which refuses to change a non-zero allowance, gets a reset to zero first.
 
-Status: planned.
+`--json` data: `{ "status": "already-approved", "token", "allowance" }`, `{ "status": "dry-run", "token", "transactions": [{ "chainId": 1, "to", "data", "spender", "amount" }] }` or `{ "status": "approved", "token", "transactions": ["0x…"] }`.
+
+Status: done.
 
 ### `turbine order place <amount> <token> --for <token> --spread <bps> --ttl <duration> [--limit <price>]`
 
-Places one spread order that tracks the mid price for its lifetime, with an optional limit price it will never trade beyond.
+Places one spread order: it sells `<amount>` of `<token>` for the `--for` token at the mid price minus `--spread` basis points (negative: only better than mid), following the market for `--ttl` (24 s to 30 days; `90s`, `30m`, `4h`, `2d`; the Permit2 allowance lasts as long, which is why it is capped). `--limit` is a hard floor in buy tokens per sell token; without it nothing but the spread protects the price, and the summary says so.
 
-Status: planned.
+Before anything is signed it checks the tokens, Turbine's $10 minimum, the lifetime and the limit, and, on Ethereum, the wallet's balance and Permit2 allowance (on mainnet a shortfall stops it; on the playground, where settlement is simulated, it is a warning). Then it shows what will be signed:
+
+1. **A Permit2 allowance**: _unlimited_ for the token sold, to Turbine's settler (on mainnet, pinned to Turbine's published address), until the order ends. Turbine asks for unlimited so the amount stays private.
+2. **The order itself**, signed as an EIP-712 request and sent to Turbine.
+
+- `--dry-run` runs Turbine's own SDK with an account that records these two payloads and signs nothing; it stops before anything is sent and needs no password. With `--json` the exact typed data is in `sign`.
+- Mainnet asks for a confirmation in a terminal, or needs `--yes` without one. So does a playground order when the wallet holds any of that token on Ethereum (approved or not yet), or when that can't be checked, because the playground's allowance signature is valid on Ethereum too until the order ends: use a fresh wallet for the playground.
+- Then the wallet is unlocked (prompt, `--password-file` or `TURBINE_WALLET_PASSWORD`), its address is checked against the keystore's, and the order goes through the SDK.
+- If anything fails after the order itself was signed, it may have been placed: the error is `ORDER_OUTCOME_UNKNOWN`, never retryable, and says to check `turbine orders` before placing it again.
+
+`--json` data: `{ "dryRun": true, "order": {…}, "sign": [{ "purpose": "permit2-allowance" | "order", "typedData": {…} }] }` or `{ "dryRun": false, "order": {…}, "hash": "0x…" }`, where `order` is the summary: `network`, `wallet`, `sell`, `buy`, `midPrice`, `atMid`, `spreadBps`, `atSpreadNow` (at today's mid; the order follows the market), `limit` (`{ price, minBuy }` or `null`), `lifetime` (`{ seconds, endsAt }`), `feePercent`, `permit2` (`{ token, spender, amount: "unlimited", expiresAt }`) and `warnings` (`[{ code, message }]`).
+
+Status: done.
+
+Acceptance:
+
+- [x] A dry run captures exactly the Permit2 allowance and the order the SDK builds, sends nothing, and needs no password (`src/turbine/sdk-orders.test.ts`, which runs the real SDK; `src/cli.test.ts`).
+- [x] A real placement signs both, sends the order once, and returns its hash; an SDK config naming a different settler is refused before signing (`src/turbine/sdk-orders.test.ts`).
+- [x] Amounts, the limit floor (rounded up), lifetime, spread and the minimum trade are checked before anything is signed (`src/turbine/order-plan.test.ts`).
+- [x] Mainnet, and a playground order exposing real tokens, need a confirmation or `--yes` (`src/cli.test.ts`, `src/turbine/order-plan.test.ts`).
+- [x] `turbine approve` dry-runs the exact transaction and sends only after a confirmation or `--yes`; nothing is sent when already approved (`src/cli.test.ts`, `src/turbine/chain.test.ts`).
 
 ### `turbine order watch <hash>`
 

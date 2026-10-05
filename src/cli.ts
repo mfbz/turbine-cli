@@ -19,6 +19,13 @@ import { parseBps, quoteCommand, renderQuote } from "./commands/quote.ts";
 import { renderTokens, tokensCommand } from "./commands/tokens.ts";
 import type { TurbineApi } from "./turbine/api.ts";
 import { createHttpApi } from "./turbine/http.ts";
+import { createChain } from "./turbine/chain.ts";
+import type { Chain } from "./turbine/chain.ts";
+import type { submitCancel, submitOrder } from "./turbine/sdk-orders.ts";
+import { approveCommand, renderApprove } from "./commands/approve.ts";
+import { placeCommand, renderPlaced, renderSummary } from "./commands/place.ts";
+import { unlockWallet } from "./wallet/signer.ts";
+import type { Hex } from "./wallet/signer.ts";
 import { CliError } from "./output/errors.ts";
 import type { ErrorCode } from "./output/errors.ts";
 import { createOutput } from "./output/output.ts";
@@ -48,12 +55,23 @@ type Io = {
   cursor?: Cursor;
   // Test-only: Turbine itself (default: the HTTP API of the chosen network).
   api?: (network: NetworkConfig) => TurbineApi;
+  // Test-only: Ethereum (default: TURBINE_RPC_URL or viem's public mainnet RPC).
+  chain?: (network: NetworkConfig) => Chain;
+  // Test-only: placing and cancelling through the SDK.
+  orders?: {
+    submitOrder: typeof submitOrder;
+    submitCancel: typeof submitCancel;
+  };
+  // Test-only: the clock, in seconds.
+  now?: () => number;
 };
 type GlobalOptions = {
   network?: string;
   account?: string;
   passwordFile?: string;
   motion: boolean;
+  dryRun?: boolean;
+  yes?: boolean;
 };
 type Captured = { text: string };
 
@@ -208,6 +226,91 @@ function buildProgram(
     output.result(entries, (theme) => renderList(entries, theme));
   };
 
+  const chain = () =>
+    (io.chain ?? ((n) => createChain({ rpcUrl: n.rpcUrl })))(network());
+  // The SDK loads only when a command signs: every other command starts fast without it, and runs from
+  // source too (Node can't strip types inside node_modules, where the SDK keeps its TypeScript).
+  const orders = io.orders ?? {
+    submitOrder: async (...args: Parameters<typeof submitOrder>) =>
+      (await import("./turbine/sdk-orders.ts")).submitOrder(...args),
+    submitCancel: async (...args: Parameters<typeof submitCancel>) =>
+      (await import("./turbine/sdk-orders.ts")).submitCancel(...args),
+  };
+  const now = io.now ?? (() => Math.floor(Date.now() / 1000));
+  // The wallet that signs: --account, TURBINE_ACCOUNT, or "default". Its address is read from the
+  // keystore without unlocking it, so --dry-run never needs the password.
+  const signingWallet = () => {
+    const name = options().account ?? env().account ?? "default";
+    let ref: WalletRef;
+    try {
+      ref = findWallet(name, dirs());
+    } catch (error) {
+      if (
+        error instanceof CliError &&
+        error.code === "WALLET_NOT_FOUND" &&
+        name === "default"
+      )
+        throw new CliError("WALLET_NONE");
+      throw error;
+    }
+    if (!ref.address)
+      throw new CliError("WALLET_FILE_INVALID", { path: ref.path });
+    const address: Hex = ref.address;
+    const unlock = async () => {
+      const unlocked = await unlockWallet(ref, walletContext().sources);
+      secrets.push(...unlocked.secrets);
+      return unlocked;
+    };
+    return { name: ref.name, address, unlock };
+  };
+  const confirm = (message: string) =>
+    io.prompter ? io.prompter.confirm(message) : Promise.resolve(undefined);
+
+  const placeOrder = async (input: {
+    amount: string;
+    sell: string;
+    buy: string;
+    spreadBps: number;
+    ttl: string;
+    limit?: string;
+  }) => {
+    const wallet = signingWallet();
+    const result = await placeCommand(input, {
+      api: api(),
+      chain: chain().reader,
+      network: network(),
+      wallet: { name: wallet.name, address: wallet.address },
+      dryRun: options().dryRun === true,
+      yes: options().yes === true,
+      interactive: io.interactive,
+      now,
+      note: (summary) => output.note(renderSummary(summary, output.theme)),
+      confirm,
+      unlock: wallet.unlock,
+      submit: orders.submitOrder,
+    });
+    output.result(result, (theme) => renderPlaced(result, theme));
+  };
+  const approve = async (token: string, amount?: string) => {
+    const wallet = signingWallet();
+    const { reader, writer } = chain();
+    const result = await approveCommand(
+      { token, ...(amount === undefined ? {} : { amount }) },
+      {
+        api: api(),
+        reader,
+        writer,
+        wallet: { name: wallet.name, address: wallet.address },
+        dryRun: options().dryRun === true,
+        yes: options().yes === true,
+        interactive: io.interactive,
+        confirm,
+        unlock: wallet.unlock,
+      }
+    );
+    output.result(result, (theme) => renderApprove(result, theme));
+  };
+
   const showTokens = async () => {
     const tokens = await tokensCommand(api());
     output.result(tokens, (theme) => renderTokens(tokens, theme));
@@ -274,6 +377,45 @@ function buildProgram(
               ...(spread ? { spreadBps: parseBps(spread) } : {}),
             });
           },
+        },
+        {
+          value: "place",
+          label: "Place an order",
+          hint: "a spread order that tracks the mid price",
+          run: async () => {
+            const amount = await ask(prompter, "How much do you sell?", "1");
+            const sell = await ask(
+              prompter,
+              "Which token do you sell?",
+              "WETH"
+            );
+            const buy = await ask(prompter, "For which token?", "USDC");
+            const spread = await ask(prompter, "Spread in basis points", "20");
+            const ttl = await ask(
+              prompter,
+              "How long should it live? (e.g. 30m, 4h)",
+              "1h"
+            );
+            const limit = await ask(
+              prompter,
+              "Limit price (blank for none)",
+              ""
+            );
+            await placeOrder({
+              amount,
+              sell,
+              buy,
+              spreadBps: parseBps(spread),
+              ttl,
+              ...(limit ? { limit } : {}),
+            });
+          },
+        },
+        {
+          value: "approve",
+          label: "Approve a token",
+          hint: "once per token, an Ethereum transaction",
+          run: async () => approve(await ask(prompter, "Which token?", "WETH")),
         },
         { value: "tokens", label: "Supported tokens", run: showTokens },
         {
@@ -361,6 +503,41 @@ function buildProgram(
           : { spreadBps: parseBps(opts.spread) }),
       });
     });
+
+  program
+    .command("approve")
+    .description(
+      "let Permit2 move a token you sell (once per token; an Ethereum transaction)"
+    )
+    .argument("<token>", "the token, e.g. WETH")
+    .option("--amount <amount>", "approve only this much (default: unlimited)")
+    .action((token, opts) => approve(token, opts.amount));
+
+  const order = program
+    .command("order")
+    .description("place, watch and cancel orders");
+  order
+    .command("place")
+    .description("place a spread order that tracks the mid price")
+    .argument("<amount>", "how much you sell, e.g. 1.5")
+    .argument("<token>", "the token you sell, e.g. WETH")
+    .requiredOption("--for <token>", "the token you buy, e.g. USDC")
+    .requiredOption(
+      "--spread <bps>",
+      "basis points from mid: 20 is up to 0.2% worse, -10 only better"
+    )
+    .requiredOption("--ttl <duration>", "how long it lives, e.g. 30m, 4h, 2d")
+    .option("--limit <price>", "never trade below this price (buy per sell)")
+    .action((amount, token, opts) =>
+      placeOrder({
+        amount,
+        sell: token,
+        buy: opts.for,
+        spreadBps: parseBps(opts.spread),
+        ttl: opts.ttl,
+        ...(opts.limit === undefined ? {} : { limit: opts.limit }),
+      })
+    );
 
   program
     .command("config")

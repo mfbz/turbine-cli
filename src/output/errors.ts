@@ -207,6 +207,100 @@ const CATALOGUE = {
     "Turbine's API names contracts other than the ones Turbine publishes for mainnet.",
     "turbine-cli won't sign for unknown contracts. Check docs.turbine.exchange and update turbine-cli."
   ),
+  TTL_TOO_LONG: entry(
+    2,
+    "An order can live 30 days at most.",
+    "Its Permit2 allowance lasts as long as the order; place a new one later if you need to."
+  ),
+  ORDER_OUTCOME_UNKNOWN: entry(
+    1,
+    "The order was signed and sent, but turbine-cli couldn't confirm Turbine took it.",
+    "It may be placed. Check with turbine orders before placing it again."
+  ),
+  CANCEL_OUTCOME_UNKNOWN: entry(
+    1,
+    "The cancel was signed and sent, but turbine-cli couldn't confirm Turbine took it.",
+    "Check the order with turbine orders before cancelling again."
+  ),
+  APPROVAL_PARTIAL: entry(
+    1,
+    "Only the first of two approval transactions went through ({hash}).",
+    "USDT needs its allowance reset to zero first; that part is done. Run turbine approve USDT again to finish."
+  ),
+  TTL_TOO_SHORT: entry(
+    2,
+    "An order must live at least 24 seconds.",
+    "Turbine delays every action by about 12 s (the Speedbump); use --ttl 1m or more."
+  ),
+  LIMIT_INVALID: entry(
+    2,
+    "A limit is a positive price in buy tokens per sell token, such as 2400.",
+    "For example: --limit 2400 means never less than 2400 USDC per WETH."
+  ),
+  AMOUNT_TOO_SMALL: entry(
+    1,
+    "Turbine's smallest trade is worth {minimum} USDC.",
+    "Trade a larger amount."
+  ),
+  ALLOWANCE_MISSING: entry(
+    1,
+    "Permit2 isn't approved to move your {token} yet.",
+    "Approve it once with: turbine approve {token}"
+  ),
+  BALANCE_TOO_LOW: entry(
+    1,
+    "This wallet doesn't hold enough {token}.",
+    "Check the amount, or fund the wallet first."
+  ),
+  ETH_TOO_LOW: entry(
+    1,
+    "This wallet doesn't have enough ETH to pay for the transaction's gas.",
+    "Send a little ETH to the wallet first (turbine config shows its address)."
+  ),
+  TRANSACTION_REVERTED: entry(
+    1,
+    "The transaction {hash} failed on Ethereum.",
+    "Nothing was approved. Check the token on a block explorer, then try again."
+  ),
+  TRANSACTION_PENDING: entry(
+    1,
+    "The transaction {hash} was sent but isn't confirmed yet.",
+    "Check it on a block explorer; don't send it again until it's settled.",
+    true
+  ),
+  CONFIRMATION_REQUIRED: entry(
+    1,
+    "This needs a confirmation and there is no terminal to ask in.",
+    "Check it with --dry-run first, then run it again with --yes."
+  ),
+  WALLET_ADDRESS_MISMATCH: entry(
+    1,
+    "The unlocked key doesn't belong to the address this wallet file declares.",
+    "The wallet file may have been changed. Nothing was signed; import the wallet again."
+  ),
+  SERVICE_BUSY: entry(
+    1,
+    "Turbine's orderbook is full right now.",
+    "Try again in a few minutes.",
+    true
+  ),
+  ORDER_LIMIT_REACHED: entry(
+    1,
+    "This wallet already has the most active orders Turbine allows (80).",
+    "Cancel some with turbine order cancel <hash>, or wait for them to fill or expire."
+  ),
+  REQUEST_FAILED: entry(
+    1,
+    "The request didn't complete: Turbine or the Ethereum RPC may be unreachable.",
+    "Try again. If it keeps failing, set TURBINE_RPC_URL to an Ethereum RPC you trust, or run with --debug.",
+    true
+  ),
+  RPC_UNREACHABLE: entry(
+    1,
+    "Couldn't read from Ethereum.",
+    "Try again, or set TURBINE_RPC_URL to an Ethereum RPC you trust.",
+    true
+  ),
   SERVICE_UNAVAILABLE: entry(
     1,
     "Turbine is unavailable right now.",
@@ -230,6 +324,15 @@ type ErrorCode = keyof typeof CATALOGUE;
 // Turbine API error codes with words of our own; any other code becomes API_REJECTED.
 const UPSTREAM: Readonly<Record<string, ErrorCode>> = {
   SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
+  CONFIG_FETCH_FAILED: "SERVICE_UNAVAILABLE",
+  ORDERBOOK_CAPACITY_ERROR: "SERVICE_BUSY",
+  USER_ORDER_LIMIT_REACHED: "ORDER_LIMIT_REACHED",
+  // The SDK's catch-all: it wraps RPC failures and dropped connections as well as its own bugs.
+  UNKNOWN_ERROR: "REQUEST_FAILED",
+  SDK_ERROR: "REQUEST_FAILED",
+  // The SDK's "submitted, but the answer was unexpected": the order or cancel may have gone through.
+  UNEXPECTED_ADD_ORDER_RESPONSE: "ORDER_OUTCOME_UNKNOWN",
+  UNEXPECTED_CANCELLATION_RESPONSE: "CANCEL_OUTCOME_UNKNOWN",
 };
 // What a filled-in parameter may look like: a name, a path, a word. Anything else becomes "…".
 const SAFE_PARAM = /^[A-Za-z0-9 _.,:/~@+=-]{1,80}$/;

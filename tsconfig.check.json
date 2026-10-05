@@ -1,0 +1,9 @@
+{
+  // For tsc and type-aware lint only. The SDK ships raw TypeScript written for looser settings, so
+  // type checking reads types/turbine-sdk.d.ts in its place. The bundler and the tests read
+  // tsconfig.json, without this mapping, and use the real SDK.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": { "turbine-sdk": ["./types/turbine-sdk.d.ts"] }
+  }
+}
