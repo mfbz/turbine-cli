@@ -160,7 +160,7 @@ describe("turbine wallet", () => {
     expect(list.doc().data).toEqual([
       expect.objectContaining({
         name: "trading",
-        address: address.toLowerCase(),
+        address,
       }),
     ]);
     const config = await capture(["config", "--account", "trading", "--json"], {
@@ -168,7 +168,7 @@ describe("turbine wallet", () => {
     });
     expect(config.doc().data.wallet).toEqual({
       name: "trading",
-      address: address.toLowerCase(),
+      address,
       source: "turbine",
     });
   });

@@ -11,6 +11,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
+import { getAddress } from "viem";
+
 import { CliError } from "../output/errors.ts";
 import type { Keystore } from "./keystore.ts";
 import type { Hex } from "./signer.ts";
@@ -57,7 +59,7 @@ function declaredAddress(path: string): Hex | null {
     const address = (json as { address?: unknown }).address;
     return typeof address === "string" &&
       /^(?:0x)?[0-9a-fA-F]{40}$/.test(address)
-      ? `0x${address.replace(/^0x/, "").toLowerCase()}`
+      ? getAddress(`0x${address.replace(/^0x/, "")}`)
       : null;
   } catch {
     return null;

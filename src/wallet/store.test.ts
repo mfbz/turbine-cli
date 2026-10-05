@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { getAddress } from "viem";
 import { generatePrivateKey } from "viem/accounts";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -116,7 +117,7 @@ describe("the wallet store", () => {
       expect.objectContaining({
         name: "trading",
         source: "turbine",
-        address: `0x${json.address}`,
+        address: getAddress(`0x${json.address}`),
       }),
       expect.objectContaining({ name: "deployer", source: "foundry" }),
     ]);
