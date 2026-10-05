@@ -3,6 +3,8 @@
 // a tagline that always names the network.
 import type { NetworkName } from "../config/network.ts";
 import type { Theme } from "../output/theme.ts";
+import { createCursor } from "./cursor.ts";
+import type { Cursor } from "./cursor.ts";
 import { LOGO } from "./logo-frames.ts";
 
 type HeaderSize = "full" | "compact" | "line";
@@ -16,6 +18,8 @@ type PlayOptions = Omit<HeaderOptions, "frame"> & {
   write: (text: string) => void;
   motion: boolean;
   sleep?: (ms: number) => Promise<void>;
+  // Shared with the Ctrl-C handler, so an interrupted animation still gives the cursor back.
+  cursor?: Cursor;
 };
 
 const FULL_FROM = 80;
@@ -23,8 +27,6 @@ const COMPACT_FROM = 56;
 // About 14 frames a second; two half turns, then rest.
 const FRAME_MS = 70;
 const TURNS = 2;
-const HIDE_CURSOR = "\u001b[?25l";
-const SHOW_CURSOR = "\u001b[?25h";
 const CLEAR_LINE = "\u001b[2K";
 
 function headerSize(width: number): HeaderSize {
@@ -71,7 +73,8 @@ async function playHeader(options: PlayOptions): Promise<void> {
   const sleep = options.sleep ?? wait;
   const frames = LOGO[size].mark.length;
   const lines = lineCount(size);
-  write(HIDE_CURSOR);
+  const cursor = options.cursor ?? createCursor(write);
+  cursor.hide();
   try {
     write(draw(0));
     for (let i = 1; i <= frames * TURNS; i++) {
@@ -84,7 +87,7 @@ async function playHeader(options: PlayOptions): Promise<void> {
       write(`\u001b[${lines}A${redraw}`);
     }
   } finally {
-    write(SHOW_CURSOR);
+    cursor.show();
   }
 }
 

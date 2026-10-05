@@ -14,4 +14,4 @@ An unofficial command line for [Turbine](https://docs.turbine.exchange), the pri
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Turbine's name and logo belong to PropellerHeads; the logo drawn in the terminal is not covered by the MIT licence ([notice](assets/brand/NOTICE.md)).

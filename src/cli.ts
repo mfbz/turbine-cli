@@ -21,6 +21,7 @@ import type { Output, Writer } from "./output/output.ts";
 import { detectTerminal } from "./output/terminal.ts";
 import type { StreamLike } from "./output/terminal.ts";
 import { createTheme } from "./output/theme.ts";
+import type { Cursor } from "./ui/cursor.ts";
 import { headerSize, playHeader } from "./ui/header.ts";
 import type { Prompter } from "./wallet/signer.ts";
 import { findWallet, walletDirs } from "./wallet/store.ts";
@@ -38,6 +39,8 @@ type Io = {
   prompter?: Prompter;
   // Test-only: a cheaper scrypt cost for new wallets.
   scryptN?: number;
+  // The terminal cursor, shared with main.ts's Ctrl-C handler.
+  cursor?: Cursor;
 };
 type GlobalOptions = {
   network?: string;
@@ -206,6 +209,7 @@ function buildProgram(
           theme: output.theme,
           network: network().name,
           motion: terminal.motion,
+          cursor: io.cursor,
         });
       },
       actions: () => [
@@ -230,31 +234,38 @@ function buildProgram(
           hint: "private key, typed hidden",
           run: async () => importWallet(await askName(prompter)),
         },
-        {
-          value: "network",
-          label: "Switch network",
-          hint: `now ${network().name}`,
-          run: async () => {
-            const choice = await prompter.choose("Which network?", [
+        // A network given on the command line is fixed for the session.
+        ...(options().network === undefined
+          ? [
               {
-                value: "playground",
-                label: "playground",
-                hint: "simulated, no real funds",
+                value: "network",
+                label: "Switch network",
+                hint: `now ${network().name}`,
+                run: async () => {
+                  const choice = await prompter.choose("Which network?", [
+                    {
+                      value: "playground",
+                      label: "playground",
+                      hint: "simulated, no real funds",
+                    },
+                    { value: "mainnet", label: "mainnet", hint: "real funds" },
+                  ]);
+                  if (choice === "mainnet") {
+                    const sure = await prompter.confirm(
+                      "Use mainnet? Orders there trade real funds."
+                    );
+                    if (sure !== true) return;
+                  }
+                  if (choice) sessionNetwork = choice;
+                  output.note(output.theme.dim(`Network: ${network().name}`));
+                },
               },
-              { value: "mainnet", label: "mainnet", hint: "real funds" },
-            ]);
-            if (choice === "mainnet") {
-              const sure = await prompter.confirm(
-                "Use mainnet? Orders there trade real funds."
-              );
-              if (sure !== true) return;
-            }
-            if (choice) sessionNetwork = choice;
-            output.note(output.theme.dim(`Network: ${network().name}`));
-          },
-        },
+            ]
+          : []),
       ],
       fail: (error) => {
+        // Cancelling a question just returns to the menu.
+        if (error instanceof CliError && error.code === "CANCELLED") return;
         output.fail(error);
       },
       goodbye: () => output.note(output.theme.dim("Trade slow, pay less.")),

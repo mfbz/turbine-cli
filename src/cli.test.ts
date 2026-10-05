@@ -281,6 +281,7 @@ describe("the interactive session", () => {
       confirms: [false],
     });
     expect(declined.out).toContain("simulated, no real funds");
+    expect(declined.out).not.toContain("▲ mainnet");
     const accepted = await capture([], {
       tty: true,
       env: STILL,
@@ -288,6 +289,27 @@ describe("the interactive session", () => {
       confirms: [true],
     });
     expect(accepted.out).toContain("▲ mainnet");
+  });
+
+  it("doesn't offer to switch networks when --network was given", async () => {
+    const result = await capture(["--network", "playground"], {
+      tty: true,
+      env: STILL,
+      choices: ["network", "config", "quit"],
+    });
+    expect(result.out).toContain("simulated, no real funds");
+    expect(result.err).not.toMatch(/error/);
+  });
+
+  it("goes quietly back to the menu when a question is cancelled", async () => {
+    const result = await capture([], {
+      tty: true,
+      env: STILL,
+      choices: ["wallet-new", "quit"],
+      texts: [],
+    });
+    expect(result.code).toBe(0);
+    expect(result.err).not.toContain("error");
   });
 
   it("is never opened without a terminal or with --json", async () => {

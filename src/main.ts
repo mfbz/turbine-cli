@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { confirm, isCancel, password, select, text } from "@clack/prompts";
 
 import { run } from "./cli.ts";
+import { createCursor } from "./ui/cursor.ts";
 import type { Choice } from "./wallet/signer.ts";
 
 // A reader that stops early (`turbine orders --json | head`) is a normal pipeline, not a crash.
@@ -14,6 +15,14 @@ for (const stream of [process.stdout, process.stderr]) {
   });
 }
 
+// Ctrl-C outside a prompt (during the header's animation, say): give the cursor back, then stop
+// with the conventional code for an interrupt. Prompts handle Ctrl-C themselves.
+const cursor = createCursor((text) => process.stdout.write(text));
+process.once("SIGINT", () => {
+  cursor.restore();
+  process.exit(130);
+});
+
 process.exitCode = await run(process.argv.slice(2), {
   stdout: (text) => process.stdout.write(text),
   stderr: (text) => process.stderr.write(text),
@@ -21,7 +30,10 @@ process.exitCode = await run(process.argv.slice(2), {
   home: homedir(),
   platform: process.platform,
   stdoutInfo: process.stdout,
-  interactive: process.stdin.isTTY && process.stdout.isTTY,
+  // All three: the result goes to stdout, prompts draw on stderr and read stdin.
+  interactive:
+    process.stdin.isTTY && process.stdout.isTTY && process.stderr.isTTY,
+  cursor,
   // Prompts draw on stderr: stdout is only for the result (one --json document). A cancelled prompt
   // (Ctrl-C, Esc) is undefined.
   prompter: {
