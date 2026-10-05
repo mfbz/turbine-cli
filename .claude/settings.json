@@ -45,7 +45,6 @@
       "Bash(git push * --force*)",
       "Bash(git push * -f*)",
       "Bash(git push * +*)",
-      "Bash(gh pr merge*)",
       "Edit(./.githooks/**)",
       "Read(./.env)",
       "Read(./.env.local)",

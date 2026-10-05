@@ -62,7 +62,7 @@ Details and examples: skill `turbine-conventions`.
 ## Git
 
 - Trunk-based: `main` is the only long-lived branch and is always green. Every change starts on a short branch from an up-to-date `main`: `feat/…`, `fix/…`, `perf/…`, `docs/…`, `chore/…`, `ci/…`, `test/…`, `refactor/…`. Conventional commits (`feat(order): …`, `fix(watch): …`).
-- A change reaches `main` only through a pull request whose checks pass. Push the branch, open the PR against `main` (`gh pr create`) with the template filled in; its title is a conventional commit, because it becomes the one commit on `main`. The maintainer reviews and squash-merges it. Agents never merge their own PR.
+- A change reaches `main` only through a pull request whose checks pass. Push the branch, open the PR against `main` (`gh pr create`) with the template filled in; its title is a conventional commit, because it becomes the one commit on `main`. The maintainer reviews and squash-merges it. An agent squash-merges a PR only when the maintainer has said so for that work, only after `ci` is green and the independent review is recorded in the PR, and never with failing or pending checks.
 - Behind `main`? Merge `main` into your branch (no rebase of pushed work, no force-push). Never push to `main`, never commit `.env` files or keys.
 - Never bump versions (they stay `0.0.0` in the code), create tags or publish; releases are the maintainer's, by hand (CONTRIBUTING "Releasing").
 - Never credit an AI tool as an author: no `Co-Authored-By` trailers for coding agents, no "Generated with …" lines, in commits, PRs, issues or docs.
