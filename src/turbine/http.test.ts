@@ -54,12 +54,17 @@ function fakeFetch(
   respond: (url: string, init?: RequestInit) => Response | Promise<Response>
 ) {
   const calls: Call[] = [];
-  const fetch = (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
+  const fetch: typeof globalThis.fetch = (input, init) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
     calls.push({ url, init });
     return Promise.resolve(respond(url, init));
   };
-  return { fetch: fetch as typeof globalThis.fetch, calls };
+  return { fetch, calls };
 }
 
 const json = (body: unknown, status = 200) =>
@@ -135,7 +140,7 @@ describe("the Turbine API client", () => {
     expect(calls[0]?.url).toBe(
       "https://playground-api.turbine.exchange/api/quote"
     );
-    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+    expect(JSON.parse(calls[0]?.init?.body as string)).toEqual({
       sellToken: WETH,
       buyToken: USDC,
       sellAmount: "1000000000000000000",
