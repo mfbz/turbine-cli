@@ -10,7 +10,7 @@ import {
   walletNew,
 } from "./commands/wallet.ts";
 import type { WalletContext } from "./commands/wallet.ts";
-import { loadEnv } from "./config/env.ts";
+import { readEnv } from "./config/env.ts";
 import type { Env } from "./config/env.ts";
 import { resolveNetwork } from "./config/network.ts";
 import { CliError } from "./output/errors.ts";
@@ -28,7 +28,6 @@ type Io = {
   stdout: Writer;
   stderr: Writer;
   env: Record<string, string | undefined>;
-  cwd: string;
   home: string;
   platform: NodeJS.Platform;
   stdoutInfo: StreamLike;
@@ -131,7 +130,7 @@ function buildProgram(
       output.result({ help }, () => help.trimEnd());
     });
 
-  const env = (): Env => loadEnv({ env: io.env, cwd: io.cwd });
+  const env = (): Env => readEnv(io.env);
   const dirs = () => walletDirs(io.env, io.home, io.platform);
   const passwordSources = (
     options: GlobalOptions,

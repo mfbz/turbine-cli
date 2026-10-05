@@ -119,7 +119,7 @@ Acceptance:
 
 - [x] Keystores round-trip, a wrong password or a tampered file is refused, and the format reads the Web3 Secret Storage test vector (`src/wallet/keystore.test.ts`).
 - [x] Files are created 600 in a 700 folder, never overwritten, and names can't become paths (`src/wallet/store.test.ts`).
-- [x] Without a terminal or a password, commands fail instead of waiting; a password is never read from `.env` (`src/wallet/signer.test.ts`, `src/cli.test.ts`).
+- [x] Without a terminal or a password, commands fail instead of waiting; a `.env` in the current folder is ignored (`src/wallet/signer.test.ts`, `src/cli.test.ts`).
 - [x] An imported key and the password never appear in any output (`src/cli.test.ts` "imports a key only through a hidden prompt").
 
 ### `turbine tokens`
@@ -178,16 +178,16 @@ Status: planned.
 
 ## Configuration
 
-turbine-cli reads its settings from the environment, and from a `.env` file in the folder it runs in when there is one; the environment wins over `.env`. `.env.example` lists them all. An empty value means unset. The two endpoints (`TURBINE_API_URL`, `TURBINE_RPC_URL`) are only read from the environment, never from `.env`: a `.env` can come with any folder.
+turbine-cli reads its settings from the environment you set up, and nowhere else. It deliberately doesn't read a `.env` from the current folder: a cloned repo or a download could then choose the wallet, the password or the endpoints. If you keep settings in a file you trust, load it into your shell yourself (`set -a; . ./my-settings; set +a`). `.env.example` lists every setting. An empty value means unset.
 
-| Variable                  | Meaning                                                                                                                |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `TURBINE_NETWORK`         | `playground` (default). `mainnet` here alone is refused: mainnet needs `--network mainnet` on the command              |
-| `TURBINE_ACCOUNT`         | the wallet to use, by name (default `default`); `--account` wins                                                       |
-| `TURBINE_WALLET_PASSWORD` | the wallet password, for scripts and agents; read from your shell only, refused in `.env`. `--password-file` is better |
-| `TURBINE_API_URL`         | a mock of the Turbine API on this computer only (`localhost`, `127.0.0.1`, `[::1]`), never on mainnet                  |
-| `TURBINE_RPC_URL`         | your own Ethereum RPC endpoint                                                                                         |
-| `TURBINE_NO_MOTION`       | `1` turns animation off, like `--no-motion`                                                                            |
+| Variable                  | Meaning                                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `TURBINE_NETWORK`         | `playground` (default). `mainnet` here alone is refused: mainnet needs `--network mainnet` on the command |
+| `TURBINE_ACCOUNT`         | the wallet to use, by name (default `default`); `--account` wins                                          |
+| `TURBINE_WALLET_PASSWORD` | the wallet password, for scripts and agents. `--password-file` is better                                  |
+| `TURBINE_API_URL`         | a mock of the Turbine API on this computer only (`localhost`, `127.0.0.1`, `[::1]`), never on mainnet     |
+| `TURBINE_RPC_URL`         | your own Ethereum RPC endpoint                                                                            |
+| `TURBINE_NO_MOTION`       | `1` turns animation off, like `--no-motion`                                                               |
 
 A wallet or password file that others can read is refused, with the command that fixes it (`chmod 600 <file>`). An API override pointing anywhere else is refused, because the API decides which contracts your wallet signs Permit2 allowances for.
 

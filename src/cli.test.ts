@@ -22,7 +22,6 @@ type Options = {
   tty?: boolean;
   answers?: string[];
   home?: string;
-  cwd?: string;
 };
 
 afterEach(() => {
@@ -45,7 +44,6 @@ async function capture(argv: string[], options: Options = {}) {
     stdout: (text) => (out += text),
     stderr: (text) => (err += text),
     env: options.env ?? {},
-    cwd: options.cwd ?? tempDir(),
     home,
     platform: "darwin",
     stdoutInfo: options.tty
@@ -212,11 +210,19 @@ describe("turbine wallet", () => {
     expect(result.all).not.toContain(typed.slice(2));
   });
 
-  it("never reads the wallet password from .env", async () => {
+  it("ignores a .env in the current folder: a cloned folder can't choose the wallet, the password or the API", async () => {
     const cwd = tempDir();
-    writeFileSync(join(cwd, ".env"), "TURBINE_WALLET_PASSWORD=hunter22\n");
-    const result = await capture(["wallet", "new", "--json"], { cwd });
-    expect(result.doc().error.code).toBe("PASSWORD_IN_DOTENV");
+    writeFileSync(
+      join(cwd, ".env"),
+      "TURBINE_ACCOUNT=someone-elses\nTURBINE_WALLET_PASSWORD=hunter22\nTURBINE_RPC_URL=https://rpc.evil.example\n"
+    );
+    const before = process.cwd();
+    process.chdir(cwd);
+    const result = await capture(["config", "--json"]).finally(() =>
+      process.chdir(before)
+    );
+    expect(result.code).toBe(0);
+    expect(result.doc().data).toMatchObject({ wallet: null, rpcUrl: null });
   });
 });
 

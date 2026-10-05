@@ -5,7 +5,7 @@ Thanks for helping. turbine-cli is built by people and by coding agents, with th
 ## Setup
 
 - Node 24 (`.nvmrc`), then `npm ci`. Installing also switches on the Git hooks (`core.hooksPath` → `.githooks/`).
-- Copy `.env.example` to `.env` only if you need a wallet; the playground needs no real funds. Use a dedicated wallet with a small balance.
+- For the playground, create a throwaway wallet with `turbine wallet new` (no real funds involved). `.env.example` lists every setting; turbine-cli reads them from your shell only.
 - Windows: enable symlinks before cloning (`git config --global core.symlinks true`, Developer Mode on) so `.claude/skills` works.
 
 ```bash

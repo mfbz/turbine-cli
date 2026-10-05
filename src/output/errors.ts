@@ -67,12 +67,7 @@ const CATALOGUE = {
   CONFIG_INVALID: entry(
     1,
     "{variable} isn't valid.",
-    "Fix it in your shell or in .env (see .env.example)."
-  ),
-  ENDPOINT_IN_DOTENV: entry(
-    1,
-    "{variable} is set in .env, where turbine-cli doesn't accept it.",
-    "A .env can come with any folder. Remove it there and set it in your shell instead."
+    "Fix it in your shell (see .env.example for every setting)."
   ),
   API_URL_NOT_ALLOWED: entry(
     1,
@@ -128,11 +123,6 @@ const CATALOGUE = {
     1,
     "The password file {path} can be read by other users of this computer.",
     "Make it yours only: chmod 600 {path}"
-  ),
-  PASSWORD_IN_DOTENV: entry(
-    1,
-    "TURBINE_WALLET_PASSWORD is set in .env, where turbine-cli doesn't accept it.",
-    "Use --password-file <file> (chmod 600), or set it in your shell."
   ),
   PASSWORD_TOO_SHORT: entry(
     1,
