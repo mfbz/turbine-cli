@@ -1,0 +1,51 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-edited-file.mjs\""
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm run check)",
+      "Bash(npm test)",
+      "Bash(npm run lint)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run format)",
+      "Bash(npm run build)",
+      "Bash(npx vitest run:*)"
+    ],
+    "deny": [
+      "Bash(git * --no-verify*)",
+      "Bash(git commit -n*)",
+      "Bash(git commit * -n)",
+      "Bash(git commit * -n *)",
+      "Bash(git * core.hooksPath*)",
+      "Bash(git * core.hookspath*)",
+      "Bash(git push * main)",
+      "Bash(git push * main:*)",
+      "Bash(git push * HEAD:main*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(gh pr merge*)",
+      "Edit(./.githooks/**)",
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.*.local)",
+      "Read(./.env.mainnet)",
+      "Read(./.env.playground)",
+      "Read(./.env.production)",
+      "Read(./**/*.key)",
+      "Read(./**/*.pem)"
+    ]
+  }
+}
