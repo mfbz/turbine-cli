@@ -2,7 +2,7 @@ import { generatePrivateKey } from "viem/accounts";
 import { describe, expect, it } from "vitest";
 
 import { CliError } from "./errors.ts";
-import { createOutput } from "./output.ts";
+import { createOutput, plain } from "./output.ts";
 import { createTheme } from "./theme.ts";
 
 function harness(json: boolean, secrets: string[] = [], color: 0 | 3 = 0) {
@@ -80,6 +80,22 @@ describe("human output", () => {
     const h = harness(false);
     h.output.note("Signing on the playground.");
     expect(h.err()).toBe("Signing on the playground.\n");
+  });
+});
+
+describe("untrusted text", () => {
+  it("can't drive the terminal from an error message (escape sequences, bells, carriage returns)", () => {
+    const h = harness(false);
+    h.output.fail({
+      code: "SOMETHING_NEW",
+      message: "bad\u001b]0;title\u0007\u001b[2J\rfake ✓ done\u009b31m",
+    });
+    expect(h.err()).toBe("✗ error: bad]0;title[2Jfake ✓ done31m\n");
+  });
+
+  it("offers the same cleaning to renderers for API data", () => {
+    expect(plain("WE\u001b[31mTH\n")).toBe("WE[31mTH");
+    expect(plain("two\nlines", { newlines: true })).toBe("two\nlines");
   });
 });
 

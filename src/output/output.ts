@@ -24,6 +24,17 @@ type OutputOptions = {
   secrets: () => readonly string[];
 };
 
+// C0 and C1 control characters (ESC, BEL, CR, CSI…), optionally keeping newlines and tabs. Text from
+// the Turbine API is the server's to choose, so it is cleaned before it reaches a terminal: an escape
+// sequence could otherwise clear the screen, retitle the window or forge a line of output.
+const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g;
+const CONTROL_AND_LAYOUT = /[\u0000-\u001f\u007f-\u009f]/g;
+
+/** Untrusted text made safe to print in a terminal. JSON output needs none of this: JSON escapes it. */
+function plain(text: string, options: { newlines?: boolean } = {}): string {
+  return text.replace(options.newlines ? CONTROL : CONTROL_AND_LAYOUT, "");
+}
+
 // bigint is how the SDK and viem carry token amounts; JSON has no such type, so they become strings.
 function toJson(value: unknown): string {
   return JSON.stringify(value, (_key, v: unknown) =>
@@ -51,14 +62,14 @@ function createOutput(options: OutputOptions): Output {
         out(`${toJson({ ok: false, error: report })}\n`);
         return exitCode;
       }
-      const lines = [`${theme.error("✗ error:")} ${report.message}`];
-      if (report.hint) lines.push(theme.dim(`  ${report.hint}`));
-      if (stack) lines.push(theme.dim(stack));
+      const lines = [`${theme.error("✗ error:")} ${plain(report.message)}`];
+      if (report.hint) lines.push(theme.dim(`  ${plain(report.hint)}`));
+      if (stack) lines.push(theme.dim(plain(stack, { newlines: true })));
       err(`${lines.join("\n")}\n`);
       return exitCode;
     },
   };
 }
 
-export { createOutput };
+export { createOutput, plain };
 export type { Output, Writer };
