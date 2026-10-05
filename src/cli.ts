@@ -133,6 +133,12 @@ function isOrderHash(argv: readonly string[], index: number): boolean {
   );
 }
 
+// Whole numbers only: Number() would also take 1e1 or 0x5.
+function parseLevels(text: string): number {
+  if (!/^\d{1,3}$/.test(text.trim())) throw new CliError("LEVELS_INVALID");
+  return Number(text.trim());
+}
+
 function isCommanderError(error: unknown): error is { code: string } {
   const code: unknown =
     typeof error === "object" && error !== null
@@ -654,7 +660,7 @@ function buildProgram(
               amount,
               sell,
               buy,
-              levels: Number(levels),
+              levels: parseLevels(levels),
               fromBps: parseBps(from),
               toBps: parseBps(to),
               ttl,
@@ -791,7 +797,7 @@ function buildProgram(
         amount,
         sell: token,
         buy: opts.for,
-        levels: Number(opts.levels),
+        levels: parseLevels(opts.levels),
         fromBps: parseBps(opts.from),
         toBps: parseBps(opts.to),
         ttl: opts.ttl,

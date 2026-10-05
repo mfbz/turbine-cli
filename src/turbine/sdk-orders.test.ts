@@ -352,6 +352,19 @@ describe("a ladder through the real SDK", () => {
   });
 });
 
+describe("a batch Turbine only partly confirms", () => {
+  it("reads as an unknown outcome, never as success", async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const p = await plan(account.address);
+    const result = await submitOrders(
+      [p, p, p],
+      { kind: "account", account },
+      { network: NETWORK, transport }
+    ).catch((e: unknown) => e);
+    expect(result).toMatchObject({ code: "ORDER_OUTCOME_UNKNOWN" });
+  });
+});
+
 describe("reading orders again and again", () => {
   it("connects once, so the SDK's caches keep working between polls", async () => {
     const account = privateKeyToAccount(generatePrivateKey());

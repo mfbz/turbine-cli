@@ -268,11 +268,11 @@ Acceptance:
 
 ### `turbine ladder <amount> <token> --for <token> --levels <n> --from <bps> --to <bps> --ttl <duration> [--limit <price>]`
 
-Splits `<amount>` into `--levels` orders (2 to 20) at evenly spaced spreads from `--from` to `--to` basis points, the way a market maker quotes: `--from -10 --to 30 --levels 5` places orders at -10, 0, 10, 20 and 30 bps. The amount is split evenly, the rounding remainder going to the last level, so the ladder sells exactly what you asked. `--limit` applies one price floor to every level.
+Splits `<amount>` into `--levels` orders (2 to 20, a whole number) at evenly spaced spreads from `--from` (the first level) to `--to` (the last) basis points; a descending ladder works too, and halves round away from zero. Every level needs its own spread, so spreads too close for that many levels are `SPREADS_TOO_CLOSE`, the way a market maker quotes: `--from -10 --to 30 --levels 5` places orders at -10, 0, 10, 20 and 30 bps. The amount is split evenly, the rounding remainder going to the last level, so the ladder sells exactly what you asked. `--limit` applies one price floor to every level.
 
-It runs the same checks as `turbine order place` once for the whole amount, then makes sure each level on its own clears Turbine's minimum trade. The summary lists every level; each signs its own Permit2 allowance and order, and all are sent as **one signed batch**. `--dry-run` shows every level's exact typed data; mainnet, or a playground wallet with real tokens exposed, asks first. A failure after signing is `ORDER_OUTCOME_UNKNOWN` for the whole ladder: check `turbine orders`.
+It runs the same checks as `turbine order place` once for the whole amount, then makes sure each level on its own clears Turbine's minimum trade. The summary lists every level; each signs its own Permit2 allowance and order, and all are sent as **one signed batch**. `--dry-run` shows every level's exact typed data; mainnet, or a playground wallet with real tokens exposed, asks first. The summary gives the spread range, the total at today's mid (the sum of the levels) and says how many things you sign (two per order). A failure after signing, or Turbine confirming fewer orders than were sent, is `ORDER_OUTCOME_UNKNOWN` for the whole ladder: check `turbine orders`.
 
-`--json` data: `{ "dryRun": true, "ladder": {…}, "sign": [[…], …] }` or `{ "dryRun": false, "ladder": {…}, "hashes": ["0x…", …] }`, where `ladder` is the order summary of `turbine order place` plus `orders` and `levels: [{ "spreadBps", "sell", "atSpreadNow", "minBuy" }]`.
+`--json` data: `{ "dryRun": true, "ladder": {…}, "sign": [[…], …] }` or `{ "dryRun": false, "ladder": {…}, "hashes": ["0x…", …] }`, where `ladder` is the order summary of `turbine order place` with `spreadFromBps` and `spreadToBps` instead of `spreadBps`, `atSpreadNow` summed over the levels, plus `orders` and `levels: [{ "spreadBps", "sell", "atSpreadNow", "minBuy" }]`.
 
 Status: done.
 

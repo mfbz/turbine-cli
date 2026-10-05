@@ -62,6 +62,27 @@ describe("planning a ladder", () => {
     ]);
   }, 10_000);
 
+  it("refuses spreads too close together to give every level its own", async () => {
+    await expect(
+      plan({ fromBps: 0, toBps: 1, levels: 5 })
+    ).rejects.toMatchObject({
+      code: "SPREADS_TOO_CLOSE",
+    });
+  });
+
+  it("rounds spreads evenly on both sides of zero, and allows a descending ladder", async () => {
+    expect(
+      (await plan({ fromBps: -5, toBps: 0, levels: 3 })).levels.map(
+        (l) => l.spreadBps
+      )
+    ).toEqual([-5, -3, 0]);
+    expect(
+      (await plan({ fromBps: 30, toBps: -10, levels: 5 })).levels.map(
+        (l) => l.spreadBps
+      )
+    ).toEqual([30, 20, 10, 0, -10]);
+  });
+
   it("refuses fewer than 2 or more than 20 levels", async () => {
     await expect(plan({ levels: 1 })).rejects.toMatchObject({
       code: "LEVELS_INVALID",

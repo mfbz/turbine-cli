@@ -51,9 +51,10 @@ async function planLadder(
     // The rounding remainder goes to the last level, so the ladder sells exactly the amount asked.
     const sellAmount =
       i === input.levels - 1 ? total.sellAmount - part * (n - 1n) : part;
-    const spreadBps = Math.round(
-      input.fromBps + ((input.toBps - input.fromBps) * i) / (input.levels - 1)
-    );
+    const exact =
+      input.fromBps + ((input.toBps - input.fromBps) * i) / (input.levels - 1);
+    // Halves round away from zero on both sides, so a ladder reads the same either way round.
+    const spreadBps = Math.sign(exact) * Math.round(Math.abs(exact));
     const atMid =
       (sellAmount * total.quote.mid.numerator) / total.quote.mid.denominator;
     const usdcValue =
@@ -73,6 +74,10 @@ async function planLadder(
       usdcValue,
     };
   });
+
+  // Two levels at the same spread would be one order split in two, not a ladder.
+  if (new Set(levels.map((l) => l.spreadBps)).size !== levels.length)
+    throw new CliError("SPREADS_TOO_CLOSE");
 
   const smallest = levels.reduce<bigint | null>(
     (min, l) =>

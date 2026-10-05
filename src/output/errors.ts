@@ -222,6 +222,11 @@ const CATALOGUE = {
     "That isn't an order hash.",
     "An order hash is 0x followed by 64 hexadecimal characters; turbine orders lists yours."
   ),
+  SPREADS_TOO_CLOSE: entry(
+    2,
+    "Those spreads are too close together for that many levels.",
+    "Every level needs its own spread: widen --from and --to, or use fewer levels."
+  ),
   LEVELS_INVALID: entry(
     2,
     "A ladder has 2 to 20 levels.",
@@ -239,8 +244,8 @@ const CATALOGUE = {
   ),
   ORDER_OUTCOME_UNKNOWN: entry(
     1,
-    "The order was signed and sent, but turbine-cli couldn't confirm Turbine took it.",
-    "It may be placed. Check with turbine orders before placing it again."
+    "The order was signed and sent, but turbine-cli couldn't confirm Turbine took all of it.",
+    "Some or all of it may be placed. Check with turbine orders before placing anything again."
   ),
   CANCEL_OUTCOME_UNKNOWN: entry(
     1,

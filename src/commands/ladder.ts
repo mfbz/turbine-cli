@@ -13,7 +13,7 @@ import type {
 } from "../turbine/sdk-orders.ts";
 import type { OrderPlan } from "../turbine/order-plan.ts";
 import type { Hex } from "../wallet/signer.ts";
-import { confirmRealFunds, renderSummary, summarise } from "./place.ts";
+import { confirmRealFunds, summarise } from "./place.ts";
 import type { OrderSummary, PlaceDeps } from "./place.ts";
 
 type Amount = { amount: string; atomic: string };
@@ -23,7 +23,13 @@ type Level = {
   atSpreadNow: Amount;
   minBuy: Amount | null;
 };
-type LadderSummary = OrderSummary & { orders: number; levels: Level[] };
+// A ladder isn't one order at one spread: the summary gives the range, and the total at today's mid.
+type LadderSummary = Omit<OrderSummary, "spreadBps"> & {
+  orders: number;
+  spreadFromBps: number;
+  spreadToBps: number;
+  levels: Level[];
+};
 type LadderResult =
   | { dryRun: true; ladder: LadderSummary; sign: SignRequest[][] }
   | { dryRun: false; ladder: LadderSummary; hashes: Hex[] };
@@ -45,9 +51,18 @@ function summariseLadder(
   levels: readonly OrderPlan[],
   wallet: LadderDeps["wallet"]
 ): LadderSummary {
-  return {
+  // One spread doesn't describe a ladder: the range below replaces it.
+  const common: Omit<OrderSummary, "spreadBps"> & { spreadBps?: number } = {
     ...summarise(total, wallet),
+  };
+  delete common.spreadBps;
+  const sum = levels.reduce((acc, l) => acc + l.atSpread, 0n);
+  return {
+    ...common,
     orders: levels.length,
+    spreadFromBps: levels[0]?.spreadBps ?? total.spreadBps,
+    spreadToBps: levels.at(-1)?.spreadBps ?? total.spreadBps,
+    atSpreadNow: amount(sum, total.buy.decimals),
     levels: levels.map((l) => ({
       spreadBps: l.spreadBps,
       sell: amount(l.sellAmount, l.sell.decimals),
@@ -60,16 +75,45 @@ function summariseLadder(
 function renderLadderSummary(s: LadderSummary, theme: Theme): string {
   const sell = s.sell.symbol;
   const buy = s.buy.symbol;
-  const width = Math.max(...s.levels.map((l) => l.sell.amount.length));
-  const rows = s.levels.map(
-    (l) =>
-      `  ${theme.dim(`${String(l.spreadBps).padStart(6)} bps`)}  ${l.sell.amount.padStart(width)} ${sell} → at least ${l.atSpreadNow.amount} ${buy}${l.minBuy ? theme.dim(` (floor ${l.minBuy.amount})`) : ""}`
-  );
+  const network =
+    s.network === "mainnet"
+      ? theme.warning("▲ mainnet (real funds)")
+      : theme.accent("playground (simulated)");
+  const rows: Array<[string, string]> = [
+    ["sell", `${s.sell.amount} ${sell} in ${s.orders} orders`],
+    [
+      "receive",
+      `at least ${s.atSpreadNow.amount} ${buy} in all at today's mid; it follows the market`,
+    ],
+    ["mid now", `${s.midPrice} ${buy} per ${sell}`],
+    ["spreads", `${s.spreadFromBps} to ${s.spreadToBps} bps from mid`],
+    [
+      "limit",
+      s.limit
+        ? `${s.limit.price} ${buy} per ${sell} on every level`
+        : theme.warning("none"),
+    ],
+    ["lives", `${s.lifetime.seconds} s, until ${s.lifetime.endsAt}`],
+    ["fee", `${s.feePercent}%, inside the spread`],
+    ["wallet", `${s.wallet.name} ${s.wallet.address}`],
+  ];
+  const width = Math.max(...rows.map(([label]) => label.length)) + 2;
+  const amounts = Math.max(...s.levels.map((l) => l.sell.amount.length));
   return [
-    renderSummary(s, theme).replace(/^Order/, `Ladder: ${s.orders} orders`),
+    `${theme.bold(`Ladder: ${s.orders} orders`)} ${theme.dim("on")} ${network}`,
+    ...rows.map(
+      ([label, value]) => `  ${theme.dim(label.padEnd(width))}${value}`
+    ),
     "",
-    `  ${theme.bold("Levels")} ${theme.dim(`(each signs its own Permit2 allowance and order)`)}`,
-    ...rows,
+    ...s.levels.map(
+      (l) =>
+        `  ${theme.dim(`${String(l.spreadBps).padStart(6)} bps`)}  ${l.sell.amount.padStart(amounts)} ${sell} → at least ${l.atSpreadNow.amount} ${buy}${l.minBuy ? theme.dim(` (floor ${l.minBuy.amount})`) : ""}`
+    ),
+    "",
+    `  ${theme.bold(`You sign ${s.orders * 2} things`)}, two per order:`,
+    `  ${theme.dim("•")} a Permit2 allowance: ${theme.warning(`unlimited ${s.permit2.token}`)} for Turbine's settler ${s.permit2.spender}, until ${s.permit2.expiresAt}`,
+    `  ${theme.dim("•")} the order itself; all ${s.orders} go to Turbine in one batch`,
+    ...s.warnings.map((w) => `  ${theme.warning("▲")} ${w.message}`),
   ].join("\n");
 }
 

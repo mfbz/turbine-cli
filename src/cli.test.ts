@@ -744,6 +744,16 @@ describe("turbine ladder", () => {
     });
     const human = await capture(LADDER, { home, env });
     expect(human.err).toContain("4 orders");
+    expect(human.err).toContain("-10 to 20 bps");
+    expect(human.err).toContain("You sign 8 things");
+    const ladder = (
+      dry.doc().data as {
+        ladder: { atSpreadNow: { amount: string }; spreadFromBps: number };
+      }
+    ).ladder;
+    // 0.25 WETH per level at mid 2500 = 625 USDC, at -10, 0, 10 and 20 bps.
+    expect(ladder.atSpreadNow.amount).toBe("2498.75");
+    expect(ladder.spreadFromBps).toBe(-10);
   });
 
   it("asks first on mainnet", async () => {

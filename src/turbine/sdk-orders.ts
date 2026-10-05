@@ -216,6 +216,9 @@ async function submitOrders(
   );
   try {
     const hashes = await quietly(() => client.addOrders(plans.map(intentOf)));
+    // One hash per order sent: anything else means some may not have been taken.
+    if (hashes.length !== plans.length)
+      throw new CliError("ORDER_OUTCOME_UNKNOWN");
     return { kind: "sent", hashes: hashes as Hex[] };
   } catch (error) {
     if (watch.requestSigned())
