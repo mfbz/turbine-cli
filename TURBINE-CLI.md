@@ -202,7 +202,7 @@ Status: done.
 
 ### `turbine order place <amount> <token> --for <token> --spread <bps> --ttl <duration> [--limit <price>]`
 
-Places one spread order: it sells `<amount>` of `<token>` for the `--for` token at the mid price minus `--spread` basis points (negative: only better than mid), following the market for `--ttl` (at least 24 s; `90s`, `30m`, `4h`, `2d`). `--limit` is a hard floor in buy tokens per sell token; without it nothing but the spread protects the price, and the summary says so.
+Places one spread order: it sells `<amount>` of `<token>` for the `--for` token at the mid price minus `--spread` basis points (negative: only better than mid), following the market for `--ttl` (24 s to 30 days; `90s`, `30m`, `4h`, `2d`; the Permit2 allowance lasts as long, which is why it is capped). `--limit` is a hard floor in buy tokens per sell token; without it nothing but the spread protects the price, and the summary says so.
 
 Before anything is signed it checks the tokens, Turbine's $10 minimum, the lifetime and the limit, and, on Ethereum, the wallet's balance and Permit2 allowance (on mainnet a shortfall stops it; on the playground, where settlement is simulated, it is a warning). Then it shows what will be signed:
 
@@ -210,8 +210,9 @@ Before anything is signed it checks the tokens, Turbine's $10 minimum, the lifet
 2. **The order itself**, signed as an EIP-712 request and sent to Turbine.
 
 - `--dry-run` runs Turbine's own SDK with an account that records these two payloads and signs nothing; it stops before anything is sent and needs no password. With `--json` the exact typed data is in `sign`.
-- Mainnet asks for a confirmation in a terminal, or needs `--yes` without one. So does a playground order when the wallet holds that token on Ethereum with Permit2 approved, because the playground's allowance signature is valid on Ethereum too: use a fresh wallet for the playground.
+- Mainnet asks for a confirmation in a terminal, or needs `--yes` without one. So does a playground order when the wallet holds any of that token on Ethereum (approved or not yet), or when that can't be checked, because the playground's allowance signature is valid on Ethereum too until the order ends: use a fresh wallet for the playground.
 - Then the wallet is unlocked (prompt, `--password-file` or `TURBINE_WALLET_PASSWORD`), its address is checked against the keystore's, and the order goes through the SDK.
+- If anything fails after the order itself was signed, it may have been placed: the error is `ORDER_OUTCOME_UNKNOWN`, never retryable, and says to check `turbine orders` before placing it again.
 
 `--json` data: `{ "dryRun": true, "order": {…}, "sign": [{ "purpose": "permit2-allowance" | "order", "typedData": {…} }] }` or `{ "dryRun": false, "order": {…}, "hash": "0x…" }`, where `order` is the summary: `network`, `wallet`, `sell`, `buy`, `midPrice`, `atMid`, `spreadBps`, `atSpreadNow` (at today's mid; the order follows the market), `limit` (`{ price, minBuy }` or `null`), `lifetime` (`{ seconds, endsAt }`), `feePercent`, `permit2` (`{ token, spender, amount: "unlimited", expiresAt }`) and `warnings` (`[{ code, message }]`).
 

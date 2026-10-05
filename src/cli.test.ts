@@ -30,7 +30,7 @@ type Options = {
   confirms?: boolean[];
   texts?: string[];
   home?: string;
-  chain?: Partial<{ balance: bigint; allowance: bigint }>;
+  chain?: Partial<{ balance: bigint; allowance: bigint; fail: boolean }>;
 };
 
 afterEach(() => {
@@ -65,8 +65,14 @@ function submitted(signer: Signer, purpose: SignRequest["purpose"]) {
 function fakeChain(over: Options["chain"] = {}): Chain {
   return {
     reader: {
-      balance: () => Promise.resolve(over.balance ?? 0n),
-      allowance: () => Promise.resolve(over.allowance ?? 0n),
+      balance: () =>
+        over.fail
+          ? Promise.reject(new Error("down"))
+          : Promise.resolve(over.balance ?? 0n),
+      allowance: () =>
+        over.fail
+          ? Promise.reject(new Error("down"))
+          : Promise.resolve(over.allowance ?? 0n),
     },
     writer: {
       send: (call) => {
@@ -510,6 +516,17 @@ describe("turbine order place", () => {
     expect(declined.code).toBe(130);
   });
 
+  it("asks before signing on the playground when Ethereum can't be checked", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const result = await capture([...ORDER, "--json"], {
+      home,
+      env,
+      chain: { fail: true },
+    });
+    expect(result.doc().error.code).toBe("CONFIRMATION_REQUIRED");
+  });
+
   it("asks before signing on the playground when the wallet's real tokens are exposed", async () => {
     const home = tempDir();
     const env = await withWallet(home);
@@ -569,6 +586,17 @@ describe("turbine approve", () => {
     });
     expect(sent.doc().data).toMatchObject({ status: "approved" });
     expect(sentTransactions).toHaveLength(1);
+  });
+
+  it("treats an allowance above uint160 as unlimited, as Permit2 does", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const result = await capture(["approve", "WETH", "--json"], {
+      home,
+      env,
+      chain: { allowance: 2n ** 200n },
+    });
+    expect(result.doc().data).toMatchObject({ status: "already-approved" });
   });
 
   it("does nothing when Permit2 is already approved", async () => {

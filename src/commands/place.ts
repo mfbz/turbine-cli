@@ -73,7 +73,7 @@ const WARNINGS: Record<Warning, string> = {
   CHAIN_UNCHECKED:
     "Couldn't read the wallet's balance and allowance from Ethereum; the playground will tell.",
   REAL_FUNDS_EXPOSED:
-    "This wallet holds real tokens that Permit2 can move, and the playground's allowance signature is valid on Ethereum too. Use a fresh wallet for the playground (turbine wallet new).",
+    "This wallet holds real tokens of this kind on Ethereum, and the playground's Permit2 signature is valid there too until the order ends. Use a fresh wallet for the playground (turbine wallet new).",
 };
 
 function amount(atomic: bigint, decimals: number): Amount {
@@ -194,9 +194,11 @@ async function placeCommand(
   }
 
   // Real funds: mainnet, or a playground order whose allowance could move this wallet's real tokens.
+  // Couldn't check counts as exposed: the signature is real either way.
   const realFunds =
     deps.network.name === "mainnet" ||
-    plan.warnings.includes("REAL_FUNDS_EXPOSED");
+    plan.warnings.includes("REAL_FUNDS_EXPOSED") ||
+    plan.warnings.includes("CHAIN_UNCHECKED");
   if (realFunds) {
     if (deps.interactive) {
       const sure = await deps.confirm(

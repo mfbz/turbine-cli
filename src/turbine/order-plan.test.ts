@@ -118,6 +118,23 @@ describe("planning an order", () => {
     );
   });
 
+  it("caps an order's life at 30 days: its Permit2 allowance lives as long", async () => {
+    await expect(plan({ ttl: "31d" })).rejects.toMatchObject({
+      code: "TTL_TOO_LONG",
+    });
+    expect((await plan({ ttl: "30d" })).ttlSeconds).toBe(30 * 86_400);
+  });
+
+  it("on the playground, counts any real balance of the token as exposed, approved or not yet", async () => {
+    const heldNotApproved: ChainReader = {
+      balance: () => Promise.resolve(1n),
+      allowance: () => Promise.resolve(0n),
+    };
+    expect((await plan({}, "playground", heldNotApproved)).warnings).toContain(
+      "REAL_FUNDS_EXPOSED"
+    );
+  });
+
   it("on the playground, carries on if Ethereum can't be read; on mainnet, stops", async () => {
     const down: ChainReader = {
       balance: () => Promise.reject(Object.assign(new Error(), { name: "x" })),

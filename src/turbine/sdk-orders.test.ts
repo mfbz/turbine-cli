@@ -210,6 +210,36 @@ describe("placing for real through the SDK", () => {
   });
 });
 
+describe("after the order was sent", () => {
+  it("never calls a failure retryable: the order may already be placed", async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const p = await plan(account.address);
+    vi.stubGlobal(
+      "fetch",
+      (input: string | URL | Request, init?: RequestInit) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        if (url.endsWith("/status")) return Promise.resolve(new Response("OK"));
+        if (url.endsWith("/config"))
+          return Promise.resolve(new Response(JSON.stringify(CONFIG)));
+        if (init?.method === "POST")
+          return Promise.resolve(new Response("not json", { status: 200 }));
+        return Promise.resolve(new Response("{}", { status: 404 }));
+      }
+    );
+    const error = await submitOrder(
+      p,
+      { kind: "account", account },
+      { network: NETWORK, transport }
+    ).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "ORDER_OUTCOME_UNKNOWN" });
+  });
+});
+
 describe("cancelling", () => {
   it("dry-runs the cancel signature without sending it", async () => {
     const owner = privateKeyToAccount(generatePrivateKey()).address;

@@ -29,6 +29,19 @@ describe("errors that aren't Turbine's", () => {
     }
   });
 
+  it("say an order may already be placed when the SDK can't confirm it", () => {
+    for (const code of [
+      "UNEXPECTED_ADD_ORDER_RESPONSE",
+      "UNEXPECTED_CANCELLATION_RESPONSE",
+    ]) {
+      const report = toErrorReport(
+        Object.assign(new Error("x"), { name: "TurbineError", code })
+      );
+      expect(report.retryable, code).toBe(false);
+      expect(report.code).toMatch(/OUTCOME_UNKNOWN$/);
+    }
+  });
+
   it("treat a cancelled prompt as interrupted (exit 130)", () => {
     expect(toErrorReport(new CliError("CANCELLED")).exitCode).toBe(130);
   });

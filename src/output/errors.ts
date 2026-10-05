@@ -207,6 +207,26 @@ const CATALOGUE = {
     "Turbine's API names contracts other than the ones Turbine publishes for mainnet.",
     "turbine-cli won't sign for unknown contracts. Check docs.turbine.exchange and update turbine-cli."
   ),
+  TTL_TOO_LONG: entry(
+    2,
+    "An order can live 30 days at most.",
+    "Its Permit2 allowance lasts as long as the order; place a new one later if you need to."
+  ),
+  ORDER_OUTCOME_UNKNOWN: entry(
+    1,
+    "The order was signed and sent, but turbine-cli couldn't confirm Turbine took it.",
+    "It may be placed. Check with turbine orders before placing it again."
+  ),
+  CANCEL_OUTCOME_UNKNOWN: entry(
+    1,
+    "The cancel was signed and sent, but turbine-cli couldn't confirm Turbine took it.",
+    "Check the order with turbine orders before cancelling again."
+  ),
+  APPROVAL_PARTIAL: entry(
+    1,
+    "Only the first of two approval transactions went through ({hash}).",
+    "USDT needs its allowance reset to zero first; that part is done. Run turbine approve USDT again to finish."
+  ),
   TTL_TOO_SHORT: entry(
     2,
     "An order must live at least 24 seconds.",
@@ -309,6 +329,10 @@ const UPSTREAM: Readonly<Record<string, ErrorCode>> = {
   USER_ORDER_LIMIT_REACHED: "ORDER_LIMIT_REACHED",
   // The SDK's catch-all: it wraps RPC failures and dropped connections as well as its own bugs.
   UNKNOWN_ERROR: "REQUEST_FAILED",
+  SDK_ERROR: "REQUEST_FAILED",
+  // The SDK's "submitted, but the answer was unexpected": the order or cancel may have gone through.
+  UNEXPECTED_ADD_ORDER_RESPONSE: "ORDER_OUTCOME_UNKNOWN",
+  UNEXPECTED_CANCELLATION_RESPONSE: "CANCEL_OUTCOME_UNKNOWN",
 };
 // What a filled-in parameter may look like: a name, a path, a word. Anything else becomes "…".
 const SAFE_PARAM = /^[A-Za-z0-9 _.,:/~@+=-]{1,80}$/;

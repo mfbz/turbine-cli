@@ -37,7 +37,8 @@ type SdkDeps = {
 
 // A well-formed signature that signs nothing, for the Permit2 step of a dry run.
 const PLACEHOLDER_SIGNATURE: Hex = `0x${"00".repeat(64)}1b`;
-const STOPPING_TYPES = new Set(["AddOrder", "CancelOrder"]);
+// The only signature a dry run answers (with a placeholder); anything else ends it before sending.
+const PERMIT_TYPE = "PermitSingle";
 const PURPOSE: Record<string, SignRequest["purpose"]> = {
   PermitSingle: "permit2-allowance",
   AddOrder: "order",
@@ -74,11 +75,10 @@ function recorder(address: Hex) {
         purpose: PURPOSE[primary] ?? "order",
         typedData: plainData(typedData),
       });
-      if (STOPPING_TYPES.has(primary)) {
-        stopped = true;
-        return Promise.reject(new DryRunStop());
-      }
-      return Promise.resolve(PLACEHOLDER_SIGNATURE);
+      if (primary === PERMIT_TYPE)
+        return Promise.resolve(PLACEHOLDER_SIGNATURE);
+      stopped = true;
+      return Promise.reject(new DryRunStop());
     },
   });
   return { account, sign, stopped: () => stopped };
@@ -116,15 +116,46 @@ async function connect(account: Account, deps: SdkDeps, settler: Hex) {
   return client;
 }
 
+// The real account, watched: once the request itself is signed, the SDK sends it next. A failure
+// from then on may mean it went through, so it must never read as "rejected" or "try again".
+function watched(account: Account) {
+  let requestSigned = false;
+  const sign = account.signTypedData?.bind(account);
+  const signMessage = account.signMessage?.bind(account);
+  const signTransaction = account.signTransaction?.bind(account);
+  if (!sign || !signMessage || !signTransaction) throw new CliError("INTERNAL");
+  return {
+    account: toAccount({
+      address: account.address,
+      signMessage,
+      signTransaction,
+      async signTypedData(typedData) {
+        const signature = await sign(typedData);
+        if (String(typedData.primaryType) !== PERMIT_TYPE) requestSigned = true;
+        return signature;
+      },
+    }),
+    requestSigned: () => requestSigned,
+  };
+}
+
 async function run(
   signer: Signer,
   deps: SdkDeps,
   settler: Hex,
+  unknownOutcome: "ORDER_OUTCOME_UNKNOWN" | "CANCEL_OUTCOME_UNKNOWN",
   work: (client: TurbineClient) => Promise<Hex>
 ): Promise<Submitted> {
   if (signer.kind === "account") {
-    const client = await quietly(() => connect(signer.account, deps, settler));
-    return { kind: "sent", hash: await quietly(() => work(client)) };
+    const watch = watched(signer.account);
+    const client = await quietly(() => connect(watch.account, deps, settler));
+    try {
+      return { kind: "sent", hash: await quietly(() => work(client)) };
+    } catch (error) {
+      if (watch.requestSigned())
+        throw new CliError(unknownOutcome, {}, { cause: error });
+      throw error;
+    }
   }
   const recording = recorder(signer.address);
   try {
@@ -165,6 +196,7 @@ async function submitOrder(
     signer,
     deps,
     plan.settler,
+    "ORDER_OUTCOME_UNKNOWN",
     async (client) => (await client.addOrder(intent)) as Hex
   );
 }
@@ -179,6 +211,7 @@ async function submitCancel(
     signer,
     deps,
     settler,
+    "CANCEL_OUTCOME_UNKNOWN",
     async (client) => (await client.cancelOrder(hash)).orderHash as Hex
   );
 }

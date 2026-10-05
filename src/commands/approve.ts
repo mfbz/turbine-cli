@@ -32,6 +32,9 @@ type ApproveDeps = {
 };
 
 const UNLIMITED = 2n ** 256n - 1n;
+// Permit2 moves at most uint160 per transfer, and some tokens (USDC) count an "infinite" allowance
+// down as it is spent: anything above uint160 is unlimited in practice.
+const EFFECTIVELY_UNLIMITED = 2n ** 160n;
 
 function tx(call: ApproveCall): Tx {
   return {
@@ -57,12 +60,14 @@ async function approveCommand(
     token.address,
     deps.wallet.address
   );
-  if (current >= wanted)
+  const enough =
+    wanted === UNLIMITED ? current >= EFFECTIVELY_UNLIMITED : current >= wanted;
+  if (enough)
     return {
       status: "already-approved",
       token: token.symbol,
       allowance:
-        current === UNLIMITED
+        current >= EFFECTIVELY_UNLIMITED
           ? "unlimited"
           : formatAmount(current, token.decimals),
     };
@@ -81,7 +86,7 @@ async function approveCommand(
 
   if (deps.interactive) {
     const sure = await deps.confirm(
-      `Send ${calls.length === 1 ? "an Ethereum transaction" : "two Ethereum transactions"} approving Permit2 for ${token.symbol}? It costs gas in ETH.`
+      `Send ${calls.length === 1 ? "an Ethereum transaction" : "two Ethereum transactions"} approving Permit2 for ${token.symbol} (${token.address})? It costs gas in ETH.`
     );
     if (sure !== true) throw new CliError("CANCELLED");
   } else if (!deps.yes) {
@@ -92,7 +97,21 @@ async function approveCommand(
   if (account.address.toLowerCase() !== deps.wallet.address.toLowerCase())
     throw new CliError("WALLET_ADDRESS_MISMATCH");
   const hashes: Hex[] = [];
-  for (const call of calls) hashes.push(await deps.writer.send(call, account));
+  for (const call of calls) {
+    try {
+      hashes.push(await deps.writer.send(call, account));
+    } catch (error) {
+      // USDT's reset went through but the approval didn't: say so, with the hash that did.
+      const [first] = hashes;
+      if (first)
+        throw new CliError(
+          "APPROVAL_PARTIAL",
+          { hash: first },
+          { cause: error }
+        );
+      throw error;
+    }
+  }
   return { status: "approved", token: token.symbol, transactions: hashes };
 }
 

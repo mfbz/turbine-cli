@@ -59,6 +59,8 @@ type PlanDeps = {
 
 // Turbine's Speedbump is about 12 s; its docs recommend at least two blocks.
 const MIN_TTL_SECONDS = 24;
+// An order's Permit2 allowance lasts as long as the order, so neither may last too long.
+const MAX_TTL_SECONDS = 30 * 86_400;
 const DECIMAL = /^(\d+)(?:\.(\d+))?$/;
 
 /** minBuyAmount for a limit price (buy tokens per sell token), rounded up: never below the limit. */
@@ -114,8 +116,9 @@ async function checkChain(
     return;
   }
   const token = plan.sell.symbol;
-  if (!mainnet && balance > 0n && allowance > 0n)
-    warnings.push("REAL_FUNDS_EXPOSED");
+  // Any balance counts, approved or not: the allowance signature stays valid until the order ends,
+  // so an approval made later would bring it to life.
+  if (!mainnet && balance > 0n) warnings.push("REAL_FUNDS_EXPOSED");
   if (allowance < plan.sellAmount) {
     if (mainnet) throw new CliError("ALLOWANCE_MISSING", { token });
     warnings.push("ALLOWANCE_MISSING");
@@ -135,6 +138,7 @@ async function planOrder(
   withSpread(1n, input.spreadBps);
   const ttlSeconds = parseDuration(input.ttl);
   if (ttlSeconds < MIN_TTL_SECONDS) throw new CliError("TTL_TOO_SHORT");
+  if (ttlSeconds > MAX_TTL_SECONDS) throw new CliError("TTL_TOO_LONG");
   if (input.limit !== undefined && !DECIMAL.test(input.limit.trim()))
     throw new CliError("LIMIT_INVALID");
 
