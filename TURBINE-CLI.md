@@ -58,9 +58,9 @@ Global flags:
 
 Output rules:
 
-- With `--json`, a command prints exactly one JSON document on stdout, and errors as JSON too. Nothing else goes to stdout.
+- With `--json`, a command prints exactly one JSON document on stdout, errors included (`{ "error": { "code", "message" } }`). Nothing else goes to stdout, and a failure still exits non-zero.
 - Human output uses colour and motion only in an interactive terminal. It respects `NO_COLOR` and stays plain when piped.
-- Errors go to stderr, with a non-zero exit code.
+- Without `--json`, errors go to stderr, with a non-zero exit code (2 for a usage error).
 
 ## Commands
 
