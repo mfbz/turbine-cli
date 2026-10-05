@@ -1,0 +1,55 @@
+{
+  "name": "turbine-cli",
+  "version": "0.0.0",
+  "description": "Unofficial CLI for Turbine, the private onchain orderbook. Quote, place, ladder and watch spread orders from your terminal or your agent.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "turbine": "dist/main.mjs"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "npm@11.12.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfbz/turbine-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mfbz/turbine-cli/issues"
+  },
+  "keywords": [
+    "turbine",
+    "cli",
+    "ethereum",
+    "orderbook",
+    "defi",
+    "market-making",
+    "ai-agents"
+  ],
+  "scripts": {
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsdown",
+    "cli": "node src/main.ts",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.9",
+    "tsdown": "^0.23.0",
+    "typescript": "~6.0",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
+  }
+}
