@@ -38,6 +38,7 @@ Every change passes the same guards, whoever writes it. They run twice:
 
 - **On every commit.** `.githooks/pre-commit` checks what is staged and `.githooks/commit-msg` checks the message, so nothing bad ever becomes a commit. Plain Node 24 runs them; nothing needs installing first.
 - **In `npm test`.** `tools/checks/guards-repo.test.ts` checks every file Git would commit, so a skipped hook is still caught in CI.
+- **On every pull request.** CI's `pull-request` job checks the title (a conventional commit) and the description with the commit-message guards, because together they become the squash commit on `main`.
 
 The guards block:
 
@@ -74,7 +75,10 @@ When the repository is public:
 
 - A ruleset on `main`: pull requests only, squash only, the `ci` check required on an up-to-date branch, no force-push, no deletion. While there is one maintainer, they merge with the admin bypass, only once `ci` is green.
 - Secret scanning with push protection, and private vulnerability reporting ([SECURITY.md](SECURITY.md)).
-- Before the first release: an `npm` environment on GitHub, and on npmjs.com a trusted publisher for this repository's `release.yml` with publishing access set to "Require two-factor authentication and disallow tokens".
+- Before the first release, once:
+  1. Claim the name: from a clean checkout of `main`, `npm publish --access public` by hand with your own npm account and two-factor authentication. This publishes the empty `0.0.0`; npm only offers trusted publishing for a package that exists.
+  2. On npmjs.com, in the package's settings: add a trusted publisher for this repository's `release.yml` with environment `npm`, then set publishing access to "Require two-factor authentication and disallow tokens".
+  3. On GitHub: create the `npm` environment, allowed to deploy from `main` only.
 
 ## Licence of contributions
 

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/mfbz/turbine-cli/security/advisories/new
+    about: Report vulnerabilities privately, never in a public issue.
+  - name: Turbine itself
+    url: https://docs.turbine.exchange
+    about: Questions about Turbine's API, contracts or web app belong to Turbine. turbine-cli is an unofficial community tool.
