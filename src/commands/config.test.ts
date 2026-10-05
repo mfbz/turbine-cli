@@ -1,4 +1,3 @@
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it } from "vitest";
 
 import { createTheme } from "../output/theme.ts";
@@ -9,23 +8,21 @@ const PLAYGROUND = {
   apiUrl: "https://playground-api.turbine.exchange/api",
   chainId: 1 as const,
 };
+const WALLET = {
+  name: "trading",
+  source: "turbine" as const,
+  path: "/home/u/.config/turbine-cli/wallets/trading.json",
+  address: "0x00000000000000000000000000000000000000aa" as const,
+};
 
 describe("turbine config", () => {
-  it("reports the wallet's address and where the key came from, never the key", () => {
-    const privateKey = generatePrivateKey();
-    const { address } = privateKeyToAccount(privateKey);
-    const report = configReport(PLAYGROUND, {
-      privateKey,
-      address,
-      source: "file",
-    });
-    expect(report).toEqual({
+  it("names the wallet and its address, never its file contents", () => {
+    expect(configReport(PLAYGROUND, WALLET)).toEqual({
       network: "playground",
       apiUrl: PLAYGROUND.apiUrl,
       rpcUrl: null,
-      wallet: { address, source: "file" },
+      wallet: { name: "trading", address: WALLET.address, source: "turbine" },
     });
-    expect(JSON.stringify(report)).not.toContain(privateKey.slice(2));
   });
 
   it("can't drive the terminal from a configured URL", () => {

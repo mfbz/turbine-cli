@@ -1,40 +1,41 @@
 import type { NetworkConfig, NetworkName } from "../config/network.ts";
 import { plain } from "../output/output.ts";
 import type { Theme } from "../output/theme.ts";
-import type { KeySource, LoadedKey } from "../wallet/key.ts";
+import type { WalletRef, WalletSource } from "../wallet/store.ts";
 
 type ConfigReport = {
   network: NetworkName;
   apiUrl: string;
   rpcUrl: string | null;
-  wallet: { address: string; source: KeySource } | null;
-};
-
-const SOURCE_NAMES: Readonly<Record<KeySource, string>> = {
-  env: "TURBINE_PRIVATE_KEY",
-  file: "TURBINE_KEY_FILE",
+  wallet: { name: string; address: string | null; source: WalletSource } | null;
 };
 
 function configReport(
   network: NetworkConfig,
-  key: LoadedKey | undefined
+  wallet: WalletRef | undefined
 ): ConfigReport {
   return {
     network: network.name,
     apiUrl: network.apiUrl,
     rpcUrl: network.rpcUrl ?? null,
-    wallet: key ? { address: key.address, source: key.source } : null,
+    wallet: wallet
+      ? { name: wallet.name, address: wallet.address, source: wallet.source }
+      : null,
   };
 }
 
 function renderConfig(report: ConfigReport, theme: Theme): string {
   const network =
     report.network === "mainnet"
-      ? `${theme.warning("mainnet")} ${theme.dim("(real funds)")}`
+      ? `${theme.warning("▲ mainnet")} ${theme.dim("(real funds)")}`
       : `${theme.accent("playground")} ${theme.dim("(simulated, no real funds)")}`;
   const wallet = report.wallet
-    ? `${report.wallet.address} ${theme.dim(`(from ${SOURCE_NAMES[report.wallet.source]})`)}`
-    : theme.dim("no wallet: set TURBINE_PRIVATE_KEY or TURBINE_KEY_FILE");
+    ? `${report.wallet.name} ${report.wallet.address ?? ""} ${theme.dim(
+        report.wallet.source === "foundry"
+          ? "(Foundry keystore)"
+          : "(encrypted)"
+      )}`
+    : theme.dim("no wallet: create one with turbine wallet new");
   const rows: Array<[string, string]> = [
     ["network", network],
     // Configured values can come from files the user didn't write; never let them drive the terminal.
