@@ -27,27 +27,46 @@ function report(over: Partial<OrderReport> = {}): OrderReport {
   };
 }
 
+const THEME = createTheme(0);
+
 function run(
-  states: OrderReport[],
+  states: Array<OrderReport | Error>,
   mode: "json" | "lines" | "screen",
   keys: string[] = []
 ) {
   const written: string[] = [];
   const queue = [...states];
-  let last = queue[0] ?? report();
-  const pending = [...keys];
+  let last: OrderReport = report();
+  let listener: ((key: string) => void) | undefined;
   return watchOrder({
-    fetchState: () => Promise.resolve((last = queue.shift() ?? last)),
+    fetchState: () => {
+      const next = queue.shift();
+      if (next instanceof Error) return Promise.reject(next);
+      if (next) last = next;
+      // A key arrives while this poll is in flight.
+      const key = keys.shift();
+      if (key !== undefined) queueMicrotask(() => listener?.(key));
+      return Promise.resolve(last);
+    },
     fetchMid: () => Promise.resolve("2500"),
-    sleep: () => Promise.resolve(),
-    nextKey: () => pending.shift(),
+    sleep: () => new Promise((resolve) => setTimeout(resolve, 1)),
+    onKey: (handler) => {
+      listener = handler;
+      return () => (listener = undefined);
+    },
     mode,
     write: (text) => written.push(text),
-    theme: createTheme(0),
+    theme: THEME,
     width: () => 80,
     now: () => 0,
   }).then((outcome) => ({ outcome, written }));
 }
+
+const serviceDown = () =>
+  Object.assign(new Error("x"), {
+    name: "TurbineError",
+    code: "SERVICE_UNAVAILABLE",
+  });
 
 describe("watching an order", () => {
   it("streams one JSON event per change, and a final one when the order is done", async () => {
@@ -68,7 +87,7 @@ describe("watching an order", () => {
         (line) =>
           JSON.parse(line) as {
             type: string;
-            order: { status: string; filledPercent: string };
+            order: { filledPercent: string };
             mid: string;
           }
       );
@@ -88,13 +107,54 @@ describe("watching an order", () => {
     expect(written[1]).toContain("expired");
   });
 
-  it("stops on q, and asks for a cancel on c, in the full-screen view", async () => {
+  it("stops on q, asks for a cancel on c, and treats Ctrl-C as an interrupt", async () => {
     expect((await run([report(), report()], "screen", ["q"])).outcome).toEqual({
       kind: "quit",
     });
     expect((await run([report(), report()], "screen", ["c"])).outcome).toEqual({
       kind: "cancel",
     });
+    expect(
+      (await run([report(), report()], "screen", ["\u0003"])).outcome
+    ).toEqual({ kind: "interrupted" });
+  });
+
+  it("answers a key at once, even while a request hangs", async () => {
+    let listener: ((key: string) => void) | undefined;
+    const outcome = await watchOrder({
+      fetchState: () => {
+        setTimeout(() => listener?.("q"), 5);
+        return new Promise<OrderReport>(() => undefined);
+      },
+      fetchMid: () => Promise.resolve(null),
+      sleep: () => Promise.resolve(),
+      onKey: (handler) => {
+        listener = handler;
+        return () => undefined;
+      },
+      mode: "screen",
+      write: () => undefined,
+      theme: THEME,
+      width: () => 80,
+      now: () => 0,
+    });
+    expect(outcome).toEqual({ kind: "quit" });
+  });
+
+  it("rides out a few transient errors, and gives up on lasting or real ones", async () => {
+    const ok = await run(
+      [report(), serviceDown(), serviceDown(), report({ status: "Filled" })],
+      "json"
+    );
+    expect(ok.outcome).toEqual({ kind: "done", status: "Filled" });
+    await expect(
+      run([report(), ...Array.from({ length: 8 }, serviceDown)], "json")
+    ).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+    const rejected = Object.assign(new Error("x"), {
+      name: "TurbineError",
+      code: "INVALID_SIGNATURE",
+    });
+    await expect(run([report(), rejected], "json")).rejects.toBe(rejected);
   });
 });
 
@@ -116,7 +176,7 @@ describe("the live view", () => {
         ],
       }),
       "2510",
-      createTheme(0),
+      THEME,
       80,
       0
     );
@@ -134,5 +194,9 @@ describe("the live view", () => {
       expect(text).toContain(piece);
     for (const line of text.split("\n"))
       expect([...line].length).toBeLessThanOrEqual(80);
+  });
+
+  it("still shows something when the terminal reports no width", () => {
+    expect(renderWatch(report(), null, THEME, 0, 0)).toContain("active");
   });
 });

@@ -129,6 +129,15 @@ async function capture(argv: string[], options: Options = {}) {
     api: () => createFakeApi(),
     chain: () => fakeChain(options.chain),
     orders: {
+      openOrderReader: () => ({
+        list: () => {
+          if (!options.listed) return Promise.resolve([LISTED]);
+          const next = listed.length > 1 ? listed.shift() : listed[0];
+          return Promise.resolve(
+            next === undefined ? [] : [next as typeof LISTED]
+          );
+        },
+      }),
       listOrders: () => {
         if (!options.listed) return Promise.resolve([LISTED]);
         const next = listed.length > 1 ? listed.shift() : listed[0];

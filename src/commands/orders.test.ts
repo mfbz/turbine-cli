@@ -53,6 +53,17 @@ describe("an order, as turbine-cli reports it", () => {
     });
   });
 
+  it("reads a floor of one atomic unit (an order placed without --limit) as no limit", () => {
+    const noLimit = {
+      ...ACTIVE,
+      orderDetails: {
+        ...ACTIVE.orderDetails,
+        limitPrice: { numerator: 1n, denominator: 10n ** 18n },
+      },
+    };
+    expect(orderReport(noLimit, FAKE_TOKENS, NOW).limitPrice).toBeNull();
+  });
+
   it("copes with a token it doesn't know and an order without details", () => {
     const bare = { ...ACTIVE, orderDetails: undefined, execution: [] };
     const report = orderReport(bare, [], NOW);

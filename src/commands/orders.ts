@@ -138,7 +138,12 @@ function orderReport(
           )
         : null,
     limitPrice:
-      details && sell && buy && details.limitPrice.denominator > 0n
+      // A floor of one atomic unit is what an order without --limit carries.
+      details &&
+      sell &&
+      buy &&
+      details.limitPrice.denominator > 0n &&
+      details.limitPrice.numerator > 1n
         ? priceOf(details.limitPrice, sell.decimals, buy.decimals)
         : null,
     createdAt: details ? details.createdTimestamp.toISOString() : null,

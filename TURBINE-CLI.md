@@ -228,9 +228,9 @@ Acceptance:
 
 ### `turbine order watch <hash>`
 
-Follows one order until it is filled, expires, is cancelled or turns invalid. It unlocks the wallet once (reading orders is a signed query), polls the order every 3 s and the mid price every 6 s.
+Follows one order until it is filled, expires, is cancelled or turns invalid. It unlocks the wallet once (reading orders is a signed query), keeps one connection, and polls the order every 3 s and the mid price every 6 s. A few transient failures (Turbine or the RPC briefly unreachable) are ridden out with growing pauses; a lasting one, or a real rejection, ends the watch with its error.
 
-- **In a terminal**: a full-screen live view: status, a fill bar with what was sold for what, mid against your limit, time left, the latest fills. `q` (or Ctrl-C) stops watching (the order carries on); `c` cancels it, asking first on mainnet. The shell's screen and cursor come back as they were, with a one-line summary.
+- **In a terminal**: a full-screen live view: status, a fill bar with what was sold for what, mid against your limit, time left, the latest fills. Keys work at once, even while a request is in flight: `q` stops watching (the order carries on; exit 0), Ctrl-C does the same as an interrupt (exit 130), `c` asks, then cancels the order with the wallet already unlocked. The live view needs a terminal on both ends; otherwise it prints lines. The shell's screen and cursor come back as they were, with a one-line summary.
 - **Piped**: one plain line per change.
 - **`--json`**: the one stream in turbine-cli: one JSON object per line, `{ "type": "state", "order": {…}, "mid" }` on each change and `{ "type": "final", "order": {…}, "mid" }` when the order is done, where `order` has the shape `turbine orders` uses. An error ends the stream with the usual `{ "ok": false, "error" }` document.
 

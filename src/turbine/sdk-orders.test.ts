@@ -11,7 +11,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createFakeApi } from "./fake-api.ts";
 import { planOrder } from "./order-plan.ts";
-import { listOrders, submitCancel, submitOrder } from "./sdk-orders.ts";
+import {
+  listOrders,
+  openOrderReader,
+  submitCancel,
+  submitOrder,
+} from "./sdk-orders.ts";
 
 const API = "https://playground-api.turbine.exchange/api";
 const SETTLER = getAddress("0x2aadb59279619cb33d34ad1a3696e23a2effb394");
@@ -309,6 +314,34 @@ describe("listing orders", () => {
       payload: { statuses: string[]; limit: number };
     };
     expect(query.payload).toMatchObject({ statuses: ["Active"], limit: 20 });
+  });
+});
+
+describe("reading orders again and again", () => {
+  it("connects once, so the SDK's caches keep working between polls", async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    let configs = 0;
+    const counting = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      (input: string | URL | Request, init?: RequestInit) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        if (url.endsWith("/config")) configs++;
+        return counting(input, init);
+      }
+    );
+    const reader = openOrderReader(account, SETTLER, {
+      network: NETWORK,
+      transport,
+    });
+    await reader.list({ hashes: [ORDER_HASH] });
+    await reader.list({ hashes: [ORDER_HASH] });
+    expect(configs).toBe(1);
   });
 });
 
