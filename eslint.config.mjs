@@ -8,7 +8,8 @@ export default defineConfig(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        // The same view of the SDK as `npm run typecheck` (tsconfig.check.json).
+        project: ["./tsconfig.check.json"],
         tsconfigRootDir: import.meta.dirname,
       },
     },

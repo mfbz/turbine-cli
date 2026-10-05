@@ -232,6 +232,32 @@ const CATALOGUE = {
     "This wallet doesn't hold enough {token}.",
     "Check the amount, or fund the wallet first."
   ),
+  ETH_TOO_LOW: entry(
+    1,
+    "This wallet doesn't have enough ETH to pay for the transaction's gas.",
+    "Send a little ETH to the wallet first (turbine config shows its address)."
+  ),
+  TRANSACTION_REVERTED: entry(
+    1,
+    "The transaction {hash} failed on Ethereum.",
+    "Nothing was approved. Check the token on a block explorer, then try again."
+  ),
+  TRANSACTION_PENDING: entry(
+    1,
+    "The transaction {hash} was sent but isn't confirmed yet.",
+    "Check it on a block explorer; don't send it again until it's settled.",
+    true
+  ),
+  CONFIRMATION_REQUIRED: entry(
+    1,
+    "This needs a confirmation and there is no terminal to ask in.",
+    "Check it with --dry-run first, then run it again with --yes."
+  ),
+  WALLET_ADDRESS_MISMATCH: entry(
+    1,
+    "The unlocked key doesn't belong to the address this wallet file declares.",
+    "The wallet file may have been changed. Nothing was signed; import the wallet again."
+  ),
   SERVICE_BUSY: entry(
     1,
     "Turbine's orderbook is full right now.",

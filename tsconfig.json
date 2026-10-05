@@ -15,7 +15,6 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "paths": { "turbine-sdk": ["./types/turbine-sdk.d.ts"] },
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src", "tools", "scripts", "types", "*.ts"]

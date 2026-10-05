@@ -9,6 +9,8 @@ import pkg from "../package.json" with { type: "json" };
 import { run } from "./cli.ts";
 import type { Io } from "./cli.ts";
 import { createFakeApi } from "./turbine/fake-api.ts";
+import type { Chain } from "./turbine/chain.ts";
+import type { SignRequest, Signer } from "./turbine/sdk-orders.ts";
 import { decryptKey } from "./wallet/keystore.ts";
 import { findWallet, readWallet, walletDirs } from "./wallet/store.ts";
 
@@ -28,6 +30,7 @@ type Options = {
   confirms?: boolean[];
   texts?: string[];
   home?: string;
+  chain?: Partial<{ balance: bigint; allowance: bigint }>;
 };
 
 afterEach(() => {
@@ -39,6 +42,39 @@ function tempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "turbine-cli-"));
   roots.push(dir);
   return dir;
+}
+
+const PLACED = `0x${"cd".repeat(32)}` as const;
+let sentTransactions: string[] = [];
+let signers: string[] = [];
+
+function submitted(signer: Signer, purpose: SignRequest["purpose"]) {
+  signers.push(
+    signer.kind === "account"
+      ? signer.account.address
+      : `dry-run ${signer.address}`
+  );
+  return signer.kind === "dry-run"
+    ? {
+        kind: "dry-run" as const,
+        sign: [{ purpose, typedData: { primaryType: "X" } }],
+      }
+    : { kind: "sent" as const, hash: PLACED };
+}
+
+function fakeChain(over: Options["chain"] = {}): Chain {
+  return {
+    reader: {
+      balance: () => Promise.resolve(over.balance ?? 0n),
+      allowance: () => Promise.resolve(over.allowance ?? 0n),
+    },
+    writer: {
+      send: (call) => {
+        sentTransactions.push(call.data);
+        return Promise.resolve(`0x${"ef".repeat(32)}` as const);
+      },
+    },
+  };
 }
 
 async function capture(argv: string[], options: Options = {}) {
@@ -68,6 +104,14 @@ async function capture(argv: string[], options: Options = {}) {
     },
     scryptN: 1024,
     api: () => createFakeApi(),
+    chain: () => fakeChain(options.chain),
+    orders: {
+      submitOrder: (_plan, signer: Signer) =>
+        Promise.resolve(submitted(signer, "order")),
+      submitCancel: (_hash, _settler, signer: Signer) =>
+        Promise.resolve(submitted(signer, "cancel")),
+    },
+    now: () => 1_800_000_000,
   };
   const code = await run(argv, io);
   return { code, out, err, all: out + err, doc: () => JSON.parse(out) as Doc };
@@ -382,6 +426,160 @@ describe("turbine tokens and turbine quote", () => {
     });
     expect(result.out).toContain("2500 USDC per WETH");
     expect(result.out).toContain("25 bps");
+  });
+});
+
+async function withWallet(home: string) {
+  await capture(["wallet", "new", "main"], {
+    env: { TURBINE_WALLET_PASSWORD: "correct horse" },
+    home,
+  });
+  return { TURBINE_WALLET_PASSWORD: "correct horse", TURBINE_ACCOUNT: "main" };
+}
+
+describe("turbine order place", () => {
+  const ORDER = [
+    "order",
+    "place",
+    "1",
+    "WETH",
+    "--for",
+    "USDC",
+    "--spread",
+    "50",
+    "--ttl",
+    "1h",
+    "--limit",
+    "2400",
+  ];
+
+  it("dry-runs: shows what would be signed, signs nothing, needs no password", async () => {
+    const home = tempDir();
+    await withWallet(home);
+    signers = [];
+    const result = await capture([...ORDER, "--dry-run", "--json"], {
+      home,
+      env: { TURBINE_ACCOUNT: "main" },
+    });
+    expect(result.code).toBe(0);
+    const data = result.doc().data as {
+      dryRun: boolean;
+      order: { permit2: { amount: string } };
+      sign: unknown[];
+    };
+    expect(data.dryRun).toBe(true);
+    expect(data.order.permit2.amount).toBe("unlimited");
+    expect(data.sign).toHaveLength(1);
+    expect(signers[0]).toMatch(/^dry-run 0x/);
+  });
+
+  it("places on the playground and names the next command", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    signers = [];
+    const json = await capture([...ORDER, "--json"], { home, env });
+    expect(json.doc().data).toMatchObject({ dryRun: false, hash: PLACED });
+    expect(signers[0]).toMatch(/^0x/);
+    const human = await capture(ORDER, { home, env });
+    expect(human.out).toContain(`turbine order watch ${PLACED}`);
+    expect(human.err).toContain("You sign");
+    expect(human.err).toContain("unlimited WETH");
+  });
+
+  it("on mainnet, refuses without a terminal unless --yes, and asks in one", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const enough = { balance: 10n ** 30n, allowance: 2n ** 256n - 1n };
+    const refused = await capture(
+      [...ORDER, "--network", "mainnet", "--json"],
+      { home, env, chain: enough }
+    );
+    expect(refused.doc().error.code).toBe("CONFIRMATION_REQUIRED");
+    const yes = await capture(
+      [...ORDER, "--network", "mainnet", "--yes", "--json"],
+      { home, env, chain: enough }
+    );
+    expect(yes.doc().data).toMatchObject({ hash: PLACED });
+    const declined = await capture([...ORDER, "--network", "mainnet"], {
+      home,
+      env,
+      chain: enough,
+      tty: true,
+      confirms: [false],
+    });
+    expect(declined.code).toBe(130);
+  });
+
+  it("asks before signing on the playground when the wallet's real tokens are exposed", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const exposed = { balance: 10n ** 30n, allowance: 2n ** 256n - 1n };
+    const result = await capture([...ORDER, "--json"], {
+      home,
+      env,
+      chain: exposed,
+    });
+    expect(result.doc().error.code).toBe("CONFIRMATION_REQUIRED");
+  });
+
+  it("needs a wallet, and checks input before asking for anything", async () => {
+    const none = await capture([...ORDER, "--json"]);
+    expect(none.doc().error.code).toBe("WALLET_NONE");
+    const home = tempDir();
+    const env = await withWallet(home);
+    const bad = await capture(
+      [
+        "order",
+        "place",
+        "1",
+        "WETH",
+        "--for",
+        "USDC",
+        "--spread",
+        "50",
+        "--ttl",
+        "5s",
+        "--json",
+      ],
+      { home, env }
+    );
+    expect(bad.doc().error.code).toBe("TTL_TOO_SHORT");
+  });
+});
+
+describe("turbine approve", () => {
+  it("dry-runs the exact transaction, and sends it only with --yes or a confirmation", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    sentTransactions = [];
+    const dry = await capture(["approve", "WETH", "--dry-run", "--json"], {
+      home,
+      env,
+    });
+    expect(dry.doc().data).toMatchObject({
+      status: "dry-run",
+      transactions: [{ chainId: 1, amount: "unlimited" }],
+    });
+    const refused = await capture(["approve", "WETH", "--json"], { home, env });
+    expect(refused.doc().error.code).toBe("CONFIRMATION_REQUIRED");
+    expect(sentTransactions).toEqual([]);
+    const sent = await capture(["approve", "WETH", "--yes", "--json"], {
+      home,
+      env,
+    });
+    expect(sent.doc().data).toMatchObject({ status: "approved" });
+    expect(sentTransactions).toHaveLength(1);
+  });
+
+  it("does nothing when Permit2 is already approved", async () => {
+    const home = tempDir();
+    const env = await withWallet(home);
+    const result = await capture(["approve", "WETH", "--json"], {
+      home,
+      env,
+      chain: { allowance: 2n ** 256n - 1n },
+    });
+    expect(result.doc().data).toMatchObject({ status: "already-approved" });
   });
 });
 

@@ -1,6 +1,6 @@
 // Types for the part of Turbine's SDK (github.com/propeller-heads/turbine-sdk, pinned in package.json)
 // that turbine-cli uses. The SDK ships raw TypeScript written for looser compiler settings than this
-// repo's, so `tsc` reads these declarations instead of its sources (tsconfig.json "paths"); the
+// repo's, so `tsc` reads these declarations instead of its sources (tsconfig.check.json "paths"); the
 // bundler and the tests use the SDK itself, and src/turbine/sdk-orders.test.ts checks the behaviour.
 declare module "turbine-sdk" {
   import type { Address, Hex, PublicClient, WalletClient } from "viem";

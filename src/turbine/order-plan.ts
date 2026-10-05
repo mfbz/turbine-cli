@@ -27,7 +27,10 @@ type Warning =
   | "LIMIT_ABOVE_MID"
   | "ALLOWANCE_MISSING"
   | "BALANCE_TOO_LOW"
-  | "CHAIN_UNCHECKED";
+  | "CHAIN_UNCHECKED"
+  // Playground only: the wallet holds this token on Ethereum and Permit2 may move it. The playground's
+  // Permit2 signature is a real one, valid on Ethereum too.
+  | "REAL_FUNDS_EXPOSED";
 type OrderPlan = {
   network: NetworkName;
   owner: Hex;
@@ -111,6 +114,8 @@ async function checkChain(
     return;
   }
   const token = plan.sell.symbol;
+  if (!mainnet && balance > 0n && allowance > 0n)
+    warnings.push("REAL_FUNDS_EXPOSED");
   if (allowance < plan.sellAmount) {
     if (mainnet) throw new CliError("ALLOWANCE_MISSING", { token });
     warnings.push("ALLOWANCE_MISSING");

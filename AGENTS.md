@@ -28,9 +28,11 @@ npm run check             # green checkpoint: format:check, lint, typecheck, tes
 npm run format            # Prettier (a Claude hook also formats each edited file)
 npm test                  # Vitest: src/ and tools/checks/, including the repo-wide guards
 npm run build             # bundle to dist/main.mjs (tsdown)
-npm run cli -- --help     # run the CLI from source
+npm run cli -- --help     # build, then run the CLI
 npm run logo:build        # after changing assets/brand/turbine-logo.svg or scripts/build-logo.ts
 ```
+
+Turbine's SDK is pinned to a commit and bundled; it ships raw TypeScript, so `tsc` and lint read `types/turbine-sdk.d.ts` instead (`tsconfig.check.json`), and `src/turbine/sdk-orders.test.ts` checks the real SDK's behaviour. Load it lazily (`await import`), only where a command signs.
 
 Generated (never edit by hand): `src/ui/logo-frames.ts` (from `assets/brand/turbine-logo.svg`; Turbine's logo belongs to PropellerHeads, see `assets/brand/NOTICE.md`).
 

@@ -38,10 +38,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings 0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.check.json --noEmit",
     "test": "vitest run",
     "build": "tsdown",
-    "cli": "node src/main.ts",
+    "cli": "tsdown --log-level warn && node dist/main.mjs",
     "prepack": "npm run build",
     "logo:build": "node scripts/build-logo.ts"
   },

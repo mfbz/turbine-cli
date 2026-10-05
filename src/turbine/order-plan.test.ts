@@ -44,7 +44,7 @@ describe("planning an order", () => {
     expect(p.startTime).toBe(BigInt(NOW));
     expect(p.endTime).toBe(BigInt(NOW + 3600));
     expect(p.settler).toMatch(/^0x/);
-    expect(p.warnings).toEqual([]);
+    expect(p.warnings).toEqual(["REAL_FUNDS_EXPOSED"]);
   });
 
   it("rounds the limit floor up, so the order never accepts less than the limit", async () => {
@@ -102,6 +102,19 @@ describe("planning an order", () => {
     const p = await plan({}, "playground", NOTHING);
     expect(p.warnings).toEqual(
       expect.arrayContaining(["ALLOWANCE_MISSING", "BALANCE_TOO_LOW"])
+    );
+  });
+
+  it("on the playground, flags a wallet whose real tokens a playground signature could move", async () => {
+    // Balance and Permit2 approval on Ethereum: the playground's Permit2 signature is valid there too.
+    expect((await plan({}, "playground", ENOUGH)).warnings).toContain(
+      "REAL_FUNDS_EXPOSED"
+    );
+    expect((await plan({}, "playground", NOTHING)).warnings).not.toContain(
+      "REAL_FUNDS_EXPOSED"
+    );
+    expect((await plan({}, "mainnet", ENOUGH)).warnings).not.toContain(
+      "REAL_FUNDS_EXPOSED"
     );
   });
 
