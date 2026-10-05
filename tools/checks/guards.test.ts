@@ -39,10 +39,26 @@ describe("the secret guard", () => {
       sample("const pk = '0x", HEX64, "'"),
       sample("signer_key = ", HEX64),
       sample('{ "private', '_key": "0x', HEX64, '" }'),
+      sample('const pk: Hex = "0x', HEX64, '"'),
+      sample('const signerPk = "0x', HEX64, '"'),
+      sample("TURBINE_KEY=0x", HEX64),
+      sample("export KEY=", HEX64),
+      sample("turbine order place --private", "-key 0x", HEX64),
     ]) {
       const found = findSecrets(line);
       expect(found, line.slice(0, 12)).toHaveLength(1);
       expect(found[0]?.match).not.toContain(HEX64.slice(0, 16));
+    }
+  });
+
+  it("finds an Ethereum private key passed straight to a signer", () => {
+    for (const line of [
+      sample('privateKeyToAccount("0x', HEX64, '")'),
+      sample('privateKeyToAccount("0x', HEX64, '" as Hex)'),
+      sample('new Wallet("0x', HEX64, '")'),
+      sample('accounts: ["0x', HEX64, '"]'),
+    ]) {
+      expect(findSecrets(line), line.slice(0, 16)).toHaveLength(1);
     }
   });
 
@@ -55,7 +71,8 @@ describe("the secret guard", () => {
   it("leaves hashes, order ids, addresses and placeholders alone", () => {
     expect(findSecrets(sample('txHash: "0x', HEX64, '"'))).toEqual([]);
     expect(findSecrets(sample("orderId = 0x", HEX64))).toEqual([]);
-    expect(findSecrets(sample("spk = 0x", HEX64))).toEqual([]);
+    expect(findSecrets(sample("blockHash = 0x", HEX64))).toEqual([]);
+    expect(findSecrets(sample("publicKey = 0x", HEX64, HEX64))).toEqual([]);
     expect(findSecrets("TURBINE_PRIVATE_KEY=")).toEqual([]);
     expect(findSecrets('privateKey: "0x…" read from TURBINE_KEY_FILE')).toEqual(
       []
@@ -64,17 +81,47 @@ describe("the secret guard", () => {
   });
 });
 
+describe("scanning large files", () => {
+  it("stays linear on a megabyte of word characters, hex or whitespace", () => {
+    for (const filler of ["x", "a", " ", "key "]) {
+      const text = filler.repeat(Math.ceil(1_000_000 / filler.length));
+      const start = performance.now();
+      findSecrets(text);
+      findAttribution(text);
+      expect(performance.now() - start, JSON.stringify(filler)).toBeLessThan(
+        500
+      );
+    }
+  });
+});
+
 describe("the authorship guard", () => {
   it("finds AI attribution trailers and lines", () => {
-    expect(
-      findAttribution(sample("Co-Authored", "-By: Some Model <x@y.z>"))
-    ).toHaveLength(1);
+    for (const author of [
+      "Claude <noreply@example.com>",
+      "GitHub Copilot <copilot@example.com>",
+      "Cursor Agent <cursoragent@example.com>",
+      "Codex <codex@example.com>",
+      "Gemini <gemini@example.com>",
+      "some-bot[bot] <bot@example.com>",
+    ]) {
+      expect(
+        findAttribution(sample("Co-Authored", "-By: ", author)),
+        author
+      ).toHaveLength(1);
+    }
     expect(findAttribution(sample("noreply@", "anthropic.com"))).toHaveLength(
       1
     );
     expect(
       findAttribution(sample("Generated with ", "[Claude Code]"))
     ).toHaveLength(1);
+  });
+
+  it("lets people credit each other as co-authors", () => {
+    expect(
+      findAttribution(sample("Co-authored", "-by: Alice <alice@example.com>"))
+    ).toEqual([]);
   });
 
   it("allows the rule that forbids them", () => {
@@ -109,7 +156,9 @@ describe("one file about to be committed", () => {
 describe("commit messages", () => {
   it("are checked for attribution and secrets", () => {
     expect(
-      checkMessage("feat: quote\n\n" + sample("Co-Authored", "-By: X <x@y.z>"))
+      checkMessage(
+        "feat: quote\n\n" + sample("Co-Authored", "-By: Claude <x@y.z>")
+      )
     ).toHaveLength(1);
     expect(checkMessage("fix: order watch redraw")).toEqual([]);
   });

@@ -4,11 +4,17 @@
 
 type Finding = { rule: string; match: string };
 
-// A key-like name, then `=` or `:`, then 64 hex digits. A bare 64-hex string is not flagged on its
-// own: transaction hashes and order ids look exactly the same, and this CLI prints both.
-const KEY_NAME = String.raw`(?:(?:private|priv|signer|signing|wallet|secret)[_-]?key|\bpk)`;
+// 64 hex digits where a signing key goes: after a key-like name (`privateKey`, `signerPk`, `KEY`,
+// `--private-key`, with an optional type annotation), inside a signer constructor, or in a Hardhat-style
+// `accounts` list. A bare 64-hex string is not flagged on its own: transaction hashes and order ids
+// look exactly the same, and this CLI prints both.
+const HEX_KEY = String.raw`["'\`]?(?:0x)?[0-9a-fA-F]{64}\b`;
 const ETH_KEY = new RegExp(
-  String.raw`${KEY_NAME}["']?\s*[:=]\s*["']?(?:0x)?[0-9a-fA-F]{64}\b`,
+  [
+    String.raw`(?<![\w-])[\w-]{0,40}(?:key|pk)["']?(?:\s*:\s*[\w.<>|]{1,40})?(?:\s*[:=]\s*|\s+)${HEX_KEY}`,
+    String.raw`(?:privateKeyToAccount|Wallet|SigningKey|fromPrivateKey)\(\s*${HEX_KEY}`,
+    String.raw`accounts\s*:\s*\[\s*${HEX_KEY}`,
+  ].join("|"),
   "i"
 );
 // A seed phrase: a mnemonic-like name, then 12 to 24 lowercase words.
@@ -28,8 +34,9 @@ const SECRETS: ReadonlyArray<[string, RegExp]> = [
   ["Slack token", /\bxox[abprs]-[A-Za-z0-9-]{10,}/],
   ["Google API key", /\bAIza[0-9A-Za-z_-]{35}\b/],
 ];
+// A co-author trailer naming an AI tool or a bot; people crediting each other is fine.
 const ATTRIBUTION =
-  /Co-Authored-By:[ \t]*[A-Za-z]|noreply@anthropic\.com|Generated with \[?Claude/i;
+  /Co-Authored-By[:][^\n]*(?:claude|anthropic|openai|chatgpt|\bgpt|copilot|codex|cursor|gemini|devin|aider|windsurf|\[bot\])|noreply@anthropic\.com|Generated with \[?Claude/i;
 
 /** 1 MB: a bigger file is almost always a build output or a recording that belongs elsewhere. */
 const MAX_FILE_BYTES = 1024 * 1024;

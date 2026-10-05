@@ -9,7 +9,7 @@ import { repoPath } from "./repo.ts";
 
 // Secret-shaped samples are assembled at run time, so this file never contains one.
 const TOKEN = ["gh", "p_", "k".repeat(36)].join("");
-const TRAILER = ["Co-Authored", "-By: A Model <model@example.com>"].join("");
+const TRAILER = ["Co-Authored", "-By: Claude <model@example.com>"].join("");
 
 const cleanups: string[] = [];
 
