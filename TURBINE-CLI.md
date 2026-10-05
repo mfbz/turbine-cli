@@ -165,6 +165,10 @@ The mid price for a pair, what selling `<amount>` would bring at mid, Turbine's 
   },
   "buy": { "symbol": "USDC", "address": "0x…" },
   "midPrice": "2500",
+  "midRatio": {
+    "numerator": "2500000000",
+    "denominator": "1000000000000000000"
+  },
   "atMid": { "amount": "2500", "atomic": "2500000000" },
   "spreadBps": 50,
   "atSpread": { "amount": "2487.5", "atomic": "2487500000" },
@@ -176,7 +180,7 @@ The mid price for a pair, what selling `<amount>` would bring at mid, Turbine's 
 }
 ```
 
-`midPrice` is in buy tokens per sell token. Amounts are exact decimal strings plus atomic units; human output rounds to 8 significant digits. `spreadBps` and `atSpread` are `null` without `--spread`.
+`midPrice` is buy tokens per sell token to 18 significant digits; `midRatio` is Turbine's exact mid price in atomic units (buy per sell). Amounts are exact decimal strings plus atomic units. Human output rounds to 8 significant digits, and rounds the spread's floor down, so "at least" is never more than the order guarantees. `spreadBps` and `atSpread` are `null` without `--spread`. A Turbine error shows its code in brackets (and as `upstreamCode` in `--json`).
 
 Status: done.
 

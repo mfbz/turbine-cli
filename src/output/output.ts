@@ -35,6 +35,11 @@ function plain(text: string, options: { newlines?: boolean } = {}): string {
   return text.replace(options.newlines ? CONTROL : CONTROL_AND_LAYOUT, "");
 }
 
+// Turbine's own error code, already held to SCREAMING_SNAKE by toErrorReport, after our words.
+function withUpstream(message: string, code: string | undefined): string {
+  return code === undefined ? message : message.replace(/\.$/, ` (${code}).`);
+}
+
 // bigint is how the SDK and viem carry token amounts; JSON has no such type, so they become strings.
 // redactValue has already turned them into strings by the time a document is written.
 function toJson(value: unknown): string {
@@ -76,7 +81,7 @@ function createOutput(options: OutputOptions): Output {
       if (json) document({ ok: false, error: report });
       else {
         err(
-          `${theme.error("✗ error:")} ${plain(report.message)}\n${theme.dim(`  ${plain(report.hint)}`)}\n`
+          `${theme.error("✗ error:")} ${plain(withUpstream(report.message, report.upstreamCode))}\n${theme.dim(`  ${plain(report.hint)}`)}\n`
         );
       }
       // Details for a bug report: class name and stack frames only, on stderr, never in the document.

@@ -96,8 +96,16 @@ function createHttpApi(options: {
     } catch (error) {
       throw new CliError("NETWORK_UNREACHABLE", {}, { cause: error });
     }
-    const text = await response.text();
-    if (text.length > MAX_BODY_BYTES)
+    const declared = Number(response.headers.get("content-length") ?? 0);
+    if (declared > MAX_BODY_BYTES) throw new CliError("API_RESPONSE_INVALID");
+    let text: string;
+    try {
+      // The timeout covers the body too; a connection that stalls or drops here is the network's.
+      text = await response.text();
+    } catch (error) {
+      throw new CliError("NETWORK_UNREACHABLE", {}, { cause: error });
+    }
+    if (Buffer.byteLength(text) > MAX_BODY_BYTES)
       throw new CliError("API_RESPONSE_INVALID");
     if (!response.ok) {
       const known = unavailable[response.status];

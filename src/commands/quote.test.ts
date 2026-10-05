@@ -79,6 +79,36 @@ describe("turbine quote", () => {
   });
 });
 
+describe("before any network call", () => {
+  it("checks the amount's format, so a typo is a usage error even offline", async () => {
+    const offline = {
+      info: () => Promise.reject(new CliError("NETWORK_UNREACHABLE")),
+      quote: () => Promise.reject(new CliError("NETWORK_UNREACHABLE")),
+    };
+    await expect(
+      quoteCommand(
+        { amount: "abc", sell: "WETH", buy: "USDC" },
+        offline,
+        "playground"
+      )
+    ).rejects.toMatchObject({ code: "AMOUNT_INVALID" });
+  });
+});
+
+describe("exactness", () => {
+  it("carries the exact mid price ratio in --json data", async () => {
+    const report = await quoteCommand(
+      { amount: "1", sell: "WETH", buy: "USDC" },
+      api,
+      "playground"
+    );
+    expect(report.midRatio).toEqual({
+      numerator: "250000000000",
+      denominator: "100000000000000000000",
+    });
+  });
+});
+
 describe("parseBps", () => {
   it("reads whole basis points and refuses anything else", () => {
     expect(parseBps("50")).toBe(50);

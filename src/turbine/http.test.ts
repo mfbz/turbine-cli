@@ -93,6 +93,36 @@ async function rejection(promise: Promise<unknown>) {
   throw new Error("expected a rejection");
 }
 
+describe("reading the answer", () => {
+  it("reports a connection that drops or stalls while the body arrives as a network problem", async () => {
+    const stalled = fakeFetch(
+      () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(
+                Object.assign(new Error("t"), { name: "TimeoutError" })
+              );
+            },
+          }),
+          { status: 200 }
+        )
+    );
+    const error = await rejection(
+      createHttpApi({ network: PLAYGROUND, fetch: stalled.fetch }).info()
+    );
+    expect((error as CliError).code).toBe("NETWORK_UNREACHABLE");
+  });
+
+  it("refuses an answer bigger than the limit, counting bytes", async () => {
+    const big = fakeFetch(() => new Response("é".repeat(1_100_000)));
+    const error = await rejection(
+      createHttpApi({ network: PLAYGROUND, fetch: big.fetch }).info()
+    );
+    expect((error as CliError).code).toBe("API_RESPONSE_INVALID");
+  });
+});
+
 describe("the Turbine API client", () => {
   it("reads the config: tokens, contracts and the minimum trade, checksummed and typed", async () => {
     const { fetch, calls } = fakeFetch(() => json(config()));

@@ -38,6 +38,21 @@ describe("parseAmount", () => {
   });
 });
 
+describe("amount bounds", () => {
+  it("refuses amounts beyond what a token amount can hold (uint256)", () => {
+    expect(thrown(() => parseAmount("9".repeat(100), 0)).code).toBe(
+      "AMOUNT_INVALID"
+    );
+  });
+});
+
+describe("rounding down", () => {
+  it("never shows more than the real amount when asked to round down", () => {
+    expect(formatAmount(832_957_797n, 6, 7, "down")).toBe("832.9577");
+    expect(formatAmount(832_957_797n, 6, 7)).toBe("832.9578");
+  });
+});
+
 describe("formatAmount", () => {
   it("writes atomic amounts back as plain decimals, without trailing zeros", () => {
     expect(formatAmount(1_500_000_000_000_000_000n, 18)).toBe("1.5");
@@ -61,6 +76,15 @@ describe("priceOf", () => {
     expect(
       priceOf({ numerator: 10n ** 18n, denominator: 2_500_000_000n }, 6, 18)
     ).toBe("0.0004");
+  });
+});
+
+describe("tiny prices", () => {
+  it("keep their significant digits instead of reading 0", () => {
+    // 1 atomic unit of a 0-decimal token buys 1e6 atomic units of a 36-decimal one.
+    expect(priceOf({ numerator: 1_000_000n, denominator: 1n }, 0, 36)).toBe(
+      "0.000000000000000000000000000001"
+    );
   });
 });
 

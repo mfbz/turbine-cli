@@ -44,6 +44,22 @@ describe("resolveToken", () => {
   });
 });
 
+describe("ambiguous symbols", () => {
+  it("are refused, asking for the address instead", () => {
+    const twice = [
+      ...TOKENS,
+      {
+        ...TOKENS[0]!,
+        address: "0x0000000000000000000000000000000000000001" as const,
+      },
+    ];
+    expect(thrown(() => resolveToken("WETH", twice)).code).toBe(
+      "TOKEN_AMBIGUOUS"
+    );
+    expect(resolveToken(TOKENS[0]!.address, twice).symbol).toBe("WETH");
+  });
+});
+
 describe("resolvePair", () => {
   it("refuses the same token on both sides", () => {
     expect(thrown(() => resolvePair("WETH", "weth", TOKENS)).code).toBe(

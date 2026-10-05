@@ -2,6 +2,7 @@ import type { NetworkName } from "../config/network.ts";
 import { CliError } from "../output/errors.ts";
 import type { Theme } from "../output/theme.ts";
 import {
+  checkAmountFormat,
   formatAmount,
   parseAmount,
   priceOf,
@@ -21,8 +22,10 @@ type QuoteReport = {
   network: NetworkName;
   sell: { symbol: string; address: string } & Amount;
   buy: { symbol: string; address: string };
-  // Buy tokens per sell token.
+  // Buy tokens per sell token, to 18 significant digits; midRatio is the exact value.
   midPrice: string;
+  // Buy-token atomic units per sell-token atomic unit, exactly as Turbine quoted it.
+  midRatio: { numerator: string; denominator: string };
   atMid: Amount;
   spreadBps: number | null;
   atSpread: Amount | null;
@@ -31,7 +34,8 @@ type QuoteReport = {
 };
 
 const BPS = /^-?\d+$/;
-// For people: amounts and prices to 8 significant digits; --json always carries the exact values.
+// For people: amounts and prices to 8 significant digits. --json carries exact amounts and the exact
+// mid price ratio.
 const SHOWN = 8;
 
 function amount(atomic: bigint, token: Token): Amount {
@@ -59,6 +63,8 @@ async function quoteCommand(
   api: TurbineApi,
   network: NetworkName
 ): Promise<QuoteReport> {
+  // A typo is a usage error even when Turbine can't be reached.
+  checkAmountFormat(input.amount);
   const { tokens } = await api.info();
   const { sell, buy } = resolvePair(input.sell, input.buy, tokens);
   const sellAmount = parseAmount(input.amount, sell.decimals);
@@ -74,6 +80,10 @@ async function quoteCommand(
     },
     buy: { symbol: buy.symbol, address: buy.address },
     midPrice: priceOf(quote.mid, sell.decimals, buy.decimals, 18),
+    midRatio: {
+      numerator: quote.mid.numerator.toString(),
+      denominator: quote.mid.denominator.toString(),
+    },
     atMid: amount(atMid, buy),
     spreadBps: spread,
     atSpread: spread === null ? null : amount(withSpread(atMid, spread), buy),
@@ -86,12 +96,12 @@ async function quoteCommand(
 }
 
 function renderQuote(report: QuoteReport, theme: Theme): string {
-  const shown = (value: string) => {
+  const shown = (value: string, rounding: "nearest" | "down" = "nearest") => {
     const [whole = "0", fraction = ""] = value.split(".");
     const digits = (whole + fraction).replace(/^0+/, "").length;
     if (digits <= SHOWN) return value;
     const decimals = fraction.length;
-    return formatAmount(BigInt(whole + fraction), decimals, SHOWN);
+    return formatAmount(BigInt(whole + fraction), decimals, SHOWN, rounding);
   };
   const buy = report.buy.symbol;
   const network =
@@ -103,10 +113,10 @@ function renderQuote(report: QuoteReport, theme: Theme): string {
     ["at mid", `${shown(report.atMid.amount)} ${buy}`],
   ];
   if (report.spreadBps !== null && report.atSpread) {
-    const edge = report.spreadBps >= 0 ? "at least" : "only at";
+    // A floor: rounded down, so what is shown is never more than what the order guarantees.
     rows.push([
       "your spread",
-      `${report.spreadBps} bps → ${edge} ${shown(report.atSpread.amount)} ${buy}`,
+      `${report.spreadBps} bps → at least ${shown(report.atSpread.amount, "down")} ${buy}`,
     ]);
   }
   rows.push(

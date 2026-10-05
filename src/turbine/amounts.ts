@@ -12,7 +12,15 @@ const DURATION = /^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/;
 const MIN_SPREAD = -10_000;
 const MAX_SPREAD = 9_999;
 // Extra precision for prices before rounding them for display.
-const PRICE_SCALE = 18;
+const PRICE_SCALE = 36;
+// The largest amount a token can hold on Ethereum (uint256).
+const MAX_UINT256 = 2n ** 256n - 1n;
+
+/** That text is shaped like an amount; the token's decimals are checked later, by parseAmount. */
+function checkAmountFormat(text: string): void {
+  if (!DECIMAL.test(text.trim()))
+    throw new CliError("AMOUNT_INVALID", { amount: text });
+}
 
 /** A positive decimal amount typed by a person, in atomic units of a token with these decimals. */
 function parseAmount(text: string, decimals: number): bigint {
@@ -21,7 +29,8 @@ function parseAmount(text: string, decimals: number): bigint {
   if ((match[1]?.length ?? 0) > decimals)
     throw new CliError("AMOUNT_TOO_PRECISE", { decimals: String(decimals) });
   const atomic = parseUnits(text.trim(), decimals);
-  if (atomic <= 0n) throw new CliError("AMOUNT_INVALID", { amount: text });
+  if (atomic <= 0n || atomic > MAX_UINT256)
+    throw new CliError("AMOUNT_INVALID", { amount: text });
   return atomic;
 }
 
@@ -29,14 +38,17 @@ function parseAmount(text: string, decimals: number): bigint {
 function formatAmount(
   atomic: bigint,
   decimals: number,
-  significant?: number
+  significant?: number,
+  // "down" for a floor shown to a person ("at least …"), so it is never more than the real amount.
+  rounding: "nearest" | "down" = "nearest"
 ): string {
   let value = atomic;
   if (significant !== undefined && value > 0n) {
     const drop = value.toString().length - significant;
     if (drop > 0) {
       const factor = 10n ** BigInt(drop);
-      value = ((value + factor / 2n) / factor) * factor;
+      const half = rounding === "down" ? 0n : factor / 2n;
+      value = ((value + half) / factor) * factor;
     }
   }
   return formatUnits(value, decimals);
@@ -84,5 +96,12 @@ function parseDuration(text: string): number {
   );
 }
 
-export { formatAmount, parseAmount, parseDuration, priceOf, withSpread };
+export {
+  checkAmountFormat,
+  formatAmount,
+  parseAmount,
+  parseDuration,
+  priceOf,
+  withSpread,
+};
 export type { Ratio };

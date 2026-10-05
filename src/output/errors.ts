@@ -175,6 +175,11 @@ const CATALOGUE = {
     "Turbine doesn't trade {token} on this network.",
     "See turbine tokens for the tokens you can use."
   ),
+  TOKEN_AMBIGUOUS: entry(
+    1,
+    "More than one token on this network is called {token}.",
+    "Use the token's address instead; turbine tokens lists them."
+  ),
   SAME_TOKEN: entry(
     2,
     "The sell and buy tokens are the same.",
@@ -211,7 +216,7 @@ const CATALOGUE = {
   API_REJECTED: entry(
     1,
     "Turbine rejected the request.",
-    "Run again with --debug to see the request's route and status."
+    "Turbine's code (in brackets, or upstreamCode in --json) says why. Check the amount, the tokens and the network; docs.turbine.exchange lists Turbine's limits."
   ),
   INTERNAL: entry(
     1,
