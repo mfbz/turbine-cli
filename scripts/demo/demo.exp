@@ -1,0 +1,84 @@
+# Drives the recorded demo (scripts/demo/record.sh): types each command at a person's pace, waits
+# for what turbine-cli prints, and takes order hashes from its output, never from anywhere else.
+set timeout 60
+# Typing: a few characters at a time, with a person's small pauses.
+set send_human {.06 .12 1 .03 .25}
+
+proc say {text} {
+  send -h -- $text
+  sleep 0.4
+  send -- "\r"
+}
+
+# Waits for the shell's prompt: a command that hangs or never finishes fails the recording.
+proc prompt {} {
+  expect {
+    -re {\$ $} {}
+    timeout { fail "the prompt" }
+  }
+}
+
+proc fail {what} {
+  send_user "\ndemo: timed out waiting for $what\n"
+  exit 1
+}
+
+# PS1 from the environment: the first frame is already a plain prompt.
+set env(PS1) {$ }
+spawn -noecho bash --noprofile --norc
+prompt
+sleep 0.6
+
+# 1. The interactive session: the logo turning, then a quote from the menu.
+say "turbine"
+expect "What would you like to do?" {} timeout { fail "the menu" }
+sleep 1.6
+send -- "\r"
+# The questions come pre-filled (1, WETH, USDC): Enter takes each answer.
+foreach question {"How much do you sell?" "Which token do you sell?" "For which token?"} {
+  expect $question {} timeout { fail $question }
+  sleep 0.7
+  send -- "\r"
+}
+expect "Spread" {} timeout { fail "the spread question" }
+sleep 0.5
+send -h -- "20"
+sleep 0.4
+send -- "\r"
+expect "What would you like to do?" {} timeout { fail "the menu again" }
+sleep 3.5
+send -- "\003"
+prompt
+sleep 0.8
+
+# 2. A ladder: three orders at -10, 10 and 30 bps, signed and sent in one batch.
+send -- "clear\r"
+prompt
+say "turbine ladder 3 WETH --for USDC --levels 3 --from -10 --to 30 --ttl 1h"
+set hashes {}
+expect {
+  -re {(0x[0-9a-f]{64})} {
+    lappend hashes $expect_out(1,string)
+    if {[llength $hashes] < 3} { exp_continue }
+  }
+  timeout { fail "the ladder's hashes" }
+}
+prompt
+sleep 2
+
+# 3. Watch the 10 bps level fill, live.
+send -- "clear\r"
+prompt
+say "turbine order watch [lindex $hashes 1]"
+prompt
+sleep 2.5
+
+# 4. The -10 bps level is better than mid, so it waits: cancel it.
+send -- "clear\r"
+prompt
+say "turbine orders"
+prompt
+sleep 2.5
+say "turbine order cancel [lindex $hashes 0]"
+prompt
+sleep 3

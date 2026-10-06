@@ -46,7 +46,8 @@
     "prepack": "npm run build",
     "logo:build": "node scripts/build-logo.ts",
     "smoke:playground": "tsdown --log-level warn && node scripts/smoke-playground.ts",
-    "mock": "node scripts/mock-turbine.ts"
+    "mock": "node scripts/mock-turbine.ts",
+    "demo:record": "bash scripts/demo/record.sh"
   },
   "devDependencies": {
     "@resvg/resvg-js": "2.6.2",
