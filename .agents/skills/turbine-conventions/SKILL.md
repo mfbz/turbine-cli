@@ -8,13 +8,13 @@ description: Use when writing or reviewing code in the turbine-cli repo. Covers 
 ## Layout
 
 - One package at the root. `src/main.ts` is the bin entry and only wires `process` to `run()` in `src/cli.ts`; everything else is testable without spawning a process.
-- One folder per feature under `src/` (e.g. `src/quote/`, `src/order/`), each with its code and co-located tests. Generic helpers only in `src/lib/`.
+- `src/` is split by layer: `commands/` (one file per command: what it does and how it renders), `turbine/` (Turbine's API, the SDK, amounts, order plans), `wallet/` (keystores, unlocking), `output/` (errors, `--json`, theme), `config/`, `net/` and `ui/`. Tests sit next to the code they cover.
 - Repo rules live in `tools/checks/` as tests, so they fail loudly instead of being forgotten.
 
 ## TypeScript
 
 - Strict, `noUncheckedIndexedAccess`: handle `undefined` from indexing instead of using `!`, except in tests.
-- `erasableSyntaxOnly`: no enums, namespaces or parameter properties, so Node runs the source directly (`npm run cli`).
+- `erasableSyntaxOnly`: no enums, namespaces or parameter properties, so Node runs TypeScript directly: tests, and scripts such as `npm run mock` and `npm run logo:build`. The CLI itself is bundled first (`npm run cli` builds, then runs `dist/main.mjs`), because the SDK it bundles ships raw TypeScript.
 - kebab-case file names; named exports; no `index.ts` barrels; import from the source file with its `.ts` extension; `import type` for types.
 - File order: imports → types → constants → private helpers → exported functions. End modules with one `export { … }` line (and `export type { … }`).
 - Comments explain why (a constraint, a trade-off, a past bug), never what.

@@ -12,7 +12,7 @@ Read in this order, only as far as the task needs:
 
 | Path                | What                                                                                   |
 | ------------------- | -------------------------------------------------------------------------------------- |
-| `src/`              | the CLI: `main.ts` (bin entry), `cli.ts` (`run(argv, output)`), one folder per feature |
+| `src/`              | the CLI: `main.ts` (bin entry), `cli.ts` (`run(argv, io)`), then one folder per layer  |
 | `tools/checks/`     | guards (secrets, keys, personal paths, AI attribution, size) and repo-invariant tests  |
 | `.githooks/`        | `pre-commit` and `commit-msg`, running the guards with plain Node                      |
 | `.agents/skills/`   | skills for agents working on this repo                                                 |
@@ -48,7 +48,7 @@ Generated (never edit by hand): `src/ui/logo-frames.ts` (from `assets/brand/turb
 - **Never sign silently.** Keys live only in encrypted keystores (`turbine wallet new|import`, or Foundry's), unlocked by a hidden prompt, `--password-file` or `TURBINE_WALLET_PASSWORD` from the shell. turbine-cli never takes a raw key from an argument, a variable or a file, and refuses a key-shaped argument. Commands get a signer, never the key.
 - **Errors come from the catalogue only** (`src/output/errors.ts`): never print a library's or the API's error text, or a typed value. Add a catalogue code instead.
 - Output: `--json` prints exactly one JSON document on stdout, errors included (`{ "ok": true, "data": … }` or `{ "ok": false, "error": { "code", "message", "hint" } }`), with a non-zero exit code on failure. Without `--json`, errors go to stderr. Human output respects `NO_COLOR` and non-TTY.
-- The user-facing agent skill always quotes first, dry-runs, and asks a human before `place`, `ladder` or `cancel`.
+- The user-facing agent skill always quotes first, dry-runs, and asks a human before `place`, `ladder`, `cancel` or `approve`.
 - turbine-cli is a standalone product. Write it that way everywhere (code, docs, commits, PRs, issues): no personal context, no backstory, and always "unofficial, not affiliated with Turbine or PropellerHeads".
 - KISS. No secrets in the repo, ever, not even well-known development keys: tests generate keys at run time.
 

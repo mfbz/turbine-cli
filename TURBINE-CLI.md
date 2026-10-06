@@ -6,7 +6,7 @@ This file says what turbine-cli **is** and is the source of truth for its behavi
 
 ## Status
 
-Every command above `turbine lp` works end to end, against Turbine's API and the local mock (`npm run mock`). It isn't published to npm yet: install it from source (README). Turbine's playground answers 503 at the time of writing, so a live playground order is still to be checked.
+Every command above `turbine lp` works end to end against the local mock (`npm run mock`), through Turbine's own SDK. Against Turbine itself, the reads (`tokens`, `quote`) are checked on mainnet; a live order, cancel and watch are still to be checked, because the playground answers 503 at the time of writing. It isn't published to npm yet: install it from source (README).
 
 turbine-cli is an unofficial community tool. It is not affiliated with, endorsed by or supported by Turbine or PropellerHeads. It uses Turbine's public API and official TypeScript SDK.
 
@@ -66,7 +66,7 @@ Output rules:
 - With `--json`, a command prints exactly one JSON document on stdout, errors included: `{ "ok": true, "data": … }` or `{ "ok": false, "error": { "code", "message", "hint"? } }`. Nothing else goes to stdout, and a failure still exits non-zero. Token amounts are strings, so no precision is lost.
 - Human output uses colour and motion only in an interactive terminal. It respects `NO_COLOR` and stays plain when piped. How it looks: [DESIGN.md](DESIGN.md).
 - Without `--json`, errors go to stderr, with a non-zero exit code.
-- Exit codes: `0` done, `1` failed, `2` usage error (an unknown command or flag, a bad value), `130` interrupted (Ctrl-C, including at a prompt; with `--json`, still one document, `INTERRUPTED`, whose hint says to check `turbine orders`: an interrupt can land after something was sent).
+- Exit codes: `0` done, `1` failed, `2` usage error (an unknown command or flag, a bad value), `130` cancelled or interrupted (declining a confirmation, or Ctrl-C, including at a prompt; with `--json`, still one document, `INTERRUPTED`, whose hint says to check `turbine orders`: an interrupt can land after something was sent).
 - Error messages and hints come only from turbine-cli's catalogue (stable `code`s for agents to branch on, plus `retryable`). An unknown API error is `API_REJECTED`, with the API's code in `upstreamCode` only if it is a plain `SCREAMING_SNAKE` word. `--debug` adds the error's class and stack frames on stderr, never in the `--json` document and never values.
 - A private key typed as an argument is refused (`KEY_IN_ARGV`, exit 2) without being echoed. The key and the wallet password never appear in any output. Text from the Turbine API is stripped of control characters before it reaches a terminal.
 
