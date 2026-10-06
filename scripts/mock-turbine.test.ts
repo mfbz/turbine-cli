@@ -167,4 +167,18 @@ describe("the local mock of Turbine", () => {
     expect(response.status).toBe(400);
     expect(await mine(account)).toEqual([]);
   });
+
+  it("fills faster when asked, for a demo that shouldn't wait", async () => {
+    await mock.close();
+    mock = await startMockTurbine({
+      port: 0,
+      now: () => clock,
+      fillEveryMs: 1_000,
+    });
+    network = { ...network, apiUrl: mock.apiUrl, rpcUrl: mock.rpcUrl };
+    const account = privateKeyToAccount(generatePrivateKey());
+    await place(account, 20);
+    clock += 3_500;
+    expect((await mine(account))[0]?.status).toBe("Filled");
+  });
 });

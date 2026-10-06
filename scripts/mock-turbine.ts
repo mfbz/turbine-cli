@@ -18,7 +18,8 @@ import {
 } from "viem";
 
 type Hex = `0x${string}`;
-type MockOptions = { port: number; now?: () => number };
+// fillEveryMs: the time between fill steps (default 6 s); a recorded demo wants them sooner.
+type MockOptions = { port: number; now?: () => number; fillEveryMs?: number };
 type MockTurbine = {
   apiUrl: string;
   rpcUrl: string;
@@ -109,7 +110,7 @@ function mid(sell: Token, buy: Token, ms: number) {
 
 // Every step that would happen: before the order ends, and never below its limit (a step whose price
 // is below the floor simply doesn't trade, as on Turbine).
-function fills(order: Order) {
+function fills(order: Order, every: number) {
   const bps = Number(order.spreadCurve.startDeltaBps ?? 0);
   // Better than mid: no taker comes at today's prices.
   if (bps < 0) return [];
@@ -123,7 +124,7 @@ function fills(order: Order) {
   return FILL_SHARES.map((share, i) => {
     const sold = i === FILL_SHARES.length - 1 ? left : (total * share) / 100n;
     left -= sold;
-    const at = order.createdMs + FILL_EVERY_MS * (i + 1);
+    const at = order.createdMs + every * (i + 1);
     const price = mid(sell, buy, at);
     const bought =
       (sold * price.numerator * BigInt(10_000 - bps)) /
@@ -145,9 +146,9 @@ function fills(order: Order) {
   });
 }
 
-function state(order: Order, now: number) {
+function state(order: Order, now: number, every: number) {
   const cutoff = Math.min(now, order.cancelledMs ?? now);
-  const all = fills(order);
+  const all = fills(order, every);
   const done = all.filter((f) => f.trades && f.at <= cutoff);
   const filled = all.length > 0 && done.length === all.length;
   const status = filled
@@ -343,6 +344,7 @@ function send(response: ServerResponse, status: number, body: unknown): void {
 
 function startMockTurbine(options: MockOptions): Promise<MockTurbine> {
   const now = options.now ?? Date.now;
+  const every = options.fillEveryMs ?? FILL_EVERY_MS;
   const orders = new Map<Hex, Order>();
   let apiUrl = "";
 
@@ -389,7 +391,7 @@ function startMockTurbine(options: MockOptions): Promise<MockTurbine> {
           return { status: 404, body: { code: "ORDER_NOT_FOUND" } };
         if (
           !["Active", "PendingCancellation"].includes(
-            state(order, now()).status
+            state(order, now(), every).status
           )
         )
           return { status: 400, body: { code: "ORDER_NOT_CANCELLABLE" } };
@@ -406,7 +408,7 @@ function startMockTurbine(options: MockOptions): Promise<MockTurbine> {
           .filter((o) => o.owner === signer)
           .filter((o) => !query.hashes?.length || query.hashes.includes(o.hash))
           .sort((a, b) => b.createdMs - a.createdMs)
-          .map((o) => state(o, now()))
+          .map((o) => state(o, now(), every))
           .filter(
             (o) => !query.statuses?.length || query.statuses.includes(o.status)
           )
@@ -471,15 +473,18 @@ function startMockTurbine(options: MockOptions): Promise<MockTurbine> {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.MOCK_TURBINE_PORT ?? DEFAULT_PORT);
-  const mock = await startMockTurbine({ port }).catch((error: unknown) => {
-    const busy = (error as NodeJS.ErrnoException).code === "EADDRINUSE";
-    console.error(
-      busy
-        ? `Port ${port} is in use. Choose another: MOCK_TURBINE_PORT=4747 npm run mock`
-        : "The mock couldn't start."
-    );
-    process.exit(1);
-  });
+  const fill = Number(process.env.MOCK_TURBINE_FILL_MS ?? FILL_EVERY_MS);
+  const mock = await startMockTurbine({ port, fillEveryMs: fill }).catch(
+    (error: unknown) => {
+      const busy = (error as NodeJS.ErrnoException).code === "EADDRINUSE";
+      console.error(
+        busy
+          ? `Port ${port} is in use. Choose another: MOCK_TURBINE_PORT=4747 npm run mock`
+          : "The mock couldn't start."
+      );
+      process.exit(1);
+    }
+  );
   console.log(`A local mock of Turbine's playground is running on 127.0.0.1:${port}.
 
 In another terminal:

@@ -13,6 +13,7 @@ npm run check             # format:check, lint, typecheck, test: must be green b
 npm run cli -- --help     # run the CLI from source
 npm run build             # bundle to dist/main.mjs
 npm run smoke:playground  # reads and dry runs against the live playground; signs nothing
+npm run demo:record       # re-record assets/demo.gif against the mock (needs asciinema and agg)
 ```
 
 ## How work happens
