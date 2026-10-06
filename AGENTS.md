@@ -6,7 +6,7 @@ Read in this order, only as far as the task needs:
 
 1. `TURBINE-CLI.md`: what the CLI is and how every command behaves (the source of truth). When code and that file disagree, flag it; never drift silently.
 2. The skill for the area you touch (`.agents/skills/`, also visible to Claude Code as `.claude/skills/`).
-3. `DESIGN.md` for anything a person sees in the terminal (once it exists).
+3. `DESIGN.md` for anything a person sees in the terminal.
 
 ## Map
 
@@ -16,7 +16,9 @@ Read in this order, only as far as the task needs:
 | `tools/checks/`     | guards (secrets, keys, personal paths, AI attribution, size) and repo-invariant tests  |
 | `.githooks/`        | `pre-commit` and `commit-msg`, running the guards with plain Node                      |
 | `.agents/skills/`   | skills for agents working on this repo                                                 |
-| `skills/`           | the user-facing skill that teaches an agent to drive the CLI (planned)                 |
+| `skills/`           | the user-facing skill that teaches an agent to drive the CLI (ships in the package)    |
+| `scripts/`          | the logo generator, the local mock of Turbine, the playground smoke test, the demo GIF |
+| `assets/`           | Turbine's logo (with its notice) and the README's demo GIF                             |
 | `.github/`          | CI, the manual release, PR and issue templates                                         |
 | `docs/superpowers/` | gitignored scratch for designs and plans; never committed                              |
 
@@ -26,10 +28,13 @@ Read in this order, only as far as the task needs:
 npm ci                    # install (Node 24, .nvmrc); also switches on the Git hooks
 npm run check             # green checkpoint: format:check, lint, typecheck, test
 npm run format            # Prettier (a Claude hook also formats each edited file)
-npm test                  # Vitest: src/ and tools/checks/, including the repo-wide guards
+npm test                  # Vitest: src/, scripts/ and tools/checks/, including the repo-wide guards
 npm run build             # bundle to dist/main.mjs (tsdown)
 npm run cli -- --help     # build, then run the CLI
 npm run logo:build        # after changing assets/brand/turbine-logo.svg or scripts/build-logo.ts
+npm run mock              # a local mock of Turbine's playground (README, "Try it without Turbine")
+npm run smoke:playground  # reads and dry runs against the live playground; signs nothing
+npm run demo:record       # re-record assets/demo.gif after changing what the demo shows
 ```
 
 Turbine's SDK is pinned to a commit and bundled; it ships raw TypeScript, so `tsc` and lint read `types/turbine-sdk.d.ts` instead (`tsconfig.check.json`), and `src/turbine/sdk-orders.test.ts` checks the real SDK's behaviour. Load it lazily (`await import`), only where a command signs.

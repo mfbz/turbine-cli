@@ -6,7 +6,7 @@ This file says what turbine-cli **is** and is the source of truth for its behavi
 
 ## Status
 
-In development. Nothing is published to npm yet; run it from source.
+Every command above `turbine lp` works end to end, against Turbine's API and the local mock (`npm run mock`). It isn't published to npm yet: install it from source (README). Turbine's playground answers 503 at the time of writing, so a live playground order is still to be checked.
 
 turbine-cli is an unofficial community tool. It is not affiliated with, endorsed by or supported by Turbine or PropellerHeads. It uses Turbine's public API and official TypeScript SDK.
 

@@ -69,19 +69,18 @@ Nothing is published yet. When it is, releases are by hand only:
 
 ## Repository settings (maintainer)
 
-Applied now:
+Applied:
 
 - Pull requests: squash merging only, with the pull request title and description as the commit; "Always suggest updating pull request branches" and "Automatically delete head branches" on.
 - Wiki, Projects and Discussions off. Dependabot alerts and security updates on.
-
-When the repository is public:
-
 - A ruleset on `main`: pull requests only, squash only, the `ci` check required on an up-to-date branch, no force-push, no deletion. While there is one maintainer, they merge with the admin bypass, only once `ci` is green.
 - Secret scanning with push protection, and private vulnerability reporting ([SECURITY.md](SECURITY.md)).
-- Before the first release, once:
-  1. Claim the name: from a clean checkout of `main`, `npm publish --access public` by hand with your own npm account and two-factor authentication. This publishes the empty `0.0.0`; npm only offers trusted publishing for a package that exists.
-  2. On npmjs.com, in the package's settings: add a trusted publisher for this repository's `release.yml` with environment `npm`, then set publishing access to "Require two-factor authentication and disallow tokens".
-  3. On GitHub: create the `npm` environment, allowed to deploy from `main` only.
+
+Still to do, once publishing to npm is decided:
+
+1. Claim the name: from a clean checkout of `main`, `npm publish --access public` by hand with your own npm account and two-factor authentication. This publishes the empty `0.0.0`; npm only offers trusted publishing for a package that exists.
+2. On npmjs.com, in the package's settings: add a trusted publisher for this repository's `release.yml` with environment `npm`, then set publishing access to "Require two-factor authentication and disallow tokens".
+3. On GitHub: create the `npm` environment, allowed to deploy from `main` only.
 
 ## Licence of contributions
 
