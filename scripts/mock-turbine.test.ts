@@ -10,7 +10,7 @@ import {
   submitCancel,
   submitOrder,
 } from "../src/turbine/sdk-orders.ts";
-import { startMockTurbine } from "./mock-turbine.ts";
+import { mockSettings, startMockTurbine } from "./mock-turbine.ts";
 import type { MockTurbine } from "./mock-turbine.ts";
 
 let clock = Date.now();
@@ -180,5 +180,20 @@ describe("the local mock of Turbine", () => {
     await place(account, 20);
     clock += 3_500;
     expect((await mine(account))[0]?.status).toBe("Filled");
+  });
+
+  it("reads its port and fill speed from the environment, and refuses nonsense", () => {
+    expect(mockSettings({})).toEqual({ port: 4646, fillEveryMs: 6000 });
+    expect(
+      mockSettings({ MOCK_TURBINE_PORT: "4747", MOCK_TURBINE_FILL_MS: "3000" })
+    ).toEqual({ port: 4747, fillEveryMs: 3000 });
+    for (const env of [
+      { MOCK_TURBINE_PORT: "http" },
+      { MOCK_TURBINE_PORT: "70000" },
+      { MOCK_TURBINE_FILL_MS: "soon" },
+      { MOCK_TURBINE_FILL_MS: "0" },
+      { MOCK_TURBINE_FILL_MS: "-5" },
+    ])
+      expect(() => mockSettings(env), JSON.stringify(env)).toThrow();
   });
 });

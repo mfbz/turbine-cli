@@ -10,14 +10,23 @@ proc say {text} {
   send -- "\r"
 }
 
+# Waits for the shell's prompt: a command that hangs or never finishes fails the recording.
+proc prompt {} {
+  expect {
+    -re {\$ $} {}
+    timeout { fail "the prompt" }
+  }
+}
+
 proc fail {what} {
   send_user "\ndemo: timed out waiting for $what\n"
   exit 1
 }
 
+# PS1 from the environment: the first frame is already a plain prompt.
+set env(PS1) {$ }
 spawn -noecho bash --noprofile --norc
-send -- "export PS1='\\$ '; clear\r"
-expect -re {\$ $}
+prompt
 sleep 0.6
 
 # 1. The interactive session: the logo turning, then a quote from the menu.
@@ -39,12 +48,12 @@ send -- "\r"
 expect "What would you like to do?" {} timeout { fail "the menu again" }
 sleep 3.5
 send -- "\003"
-expect -re {\$ $} {} timeout { fail "the prompt" }
+prompt
 sleep 0.8
 
 # 2. A ladder: three orders at -10, 10 and 30 bps, signed and sent in one batch.
 send -- "clear\r"
-expect -re {\$ $}
+prompt
 say "turbine ladder 3 WETH --for USDC --levels 3 --from -10 --to 30 --ttl 1h"
 set hashes {}
 expect {
@@ -54,22 +63,22 @@ expect {
   }
   timeout { fail "the ladder's hashes" }
 }
-expect -re {\$ $}
+prompt
 sleep 2
 
 # 3. Watch the 10 bps level fill, live.
 send -- "clear\r"
-expect -re {\$ $}
+prompt
 say "turbine order watch [lindex $hashes 1]"
-expect -re {\$ $} {} timeout { fail "the watch to end" }
+prompt
 sleep 2.5
 
 # 4. The -10 bps level is better than mid, so it waits: cancel it.
 send -- "clear\r"
-expect -re {\$ $}
+prompt
 say "turbine orders"
-expect -re {\$ $}
+prompt
 sleep 2.5
 say "turbine order cancel [lindex $hashes 0]"
-expect -re {\$ $}
+prompt
 sleep 3

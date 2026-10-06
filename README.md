@@ -6,7 +6,7 @@ An unofficial command line for [Turbine](https://docs.turbine.exchange), the pri
 
 ![turbine-cli in a terminal: the interactive session with Turbine's logo turning, a quote, a ladder of three orders with everything it signs, a live watch as fills arrive, and a cancel](assets/demo.gif)
 
-<sub>Recorded against the local mock (`npm run mock`): no network, no real funds.</sub>
+<sub>Recorded with `npm run demo:record` against the local mock (`npm run mock`, with faster fills): no network, no real funds.</sub>
 
 Turbine matches orders privately and settles them onchain in batches. An order there is a spread around the mid price that follows the market, rather than a fixed price. turbine-cli puts that in a terminal: one command per action for scripts and agents, and an interactive session when you type `turbine` on its own.
 

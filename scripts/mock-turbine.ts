@@ -16,6 +16,7 @@ import {
   stringToBytes,
   toHex,
 } from "viem";
+import { z } from "zod";
 
 type Hex = `0x${string}`;
 // fillEveryMs: the time between fill steps (default 6 s); a recorded demo wants them sooner.
@@ -312,6 +313,30 @@ function valid(payload: unknown): Pick<Order, "order" | "spreadCurve"> {
   return { order: o, spreadCurve: p.spreadCurve };
 }
 
+// The mock's own settings, from the environment: whole numbers in range, or a clear refusal.
+const SETTINGS = z.object({
+  MOCK_TURBINE_PORT: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(65_535)
+    .default(DEFAULT_PORT),
+  MOCK_TURBINE_FILL_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(3_600_000)
+    .default(FILL_EVERY_MS),
+});
+
+function mockSettings(env: Record<string, string | undefined>) {
+  const parsed = SETTINGS.parse(env);
+  return {
+    port: parsed.MOCK_TURBINE_PORT,
+    fillEveryMs: parsed.MOCK_TURBINE_FILL_MS,
+  };
+}
+
 function readBody(request: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -472,19 +497,26 @@ function startMockTurbine(options: MockOptions): Promise<MockTurbine> {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const port = Number(process.env.MOCK_TURBINE_PORT ?? DEFAULT_PORT);
-  const fill = Number(process.env.MOCK_TURBINE_FILL_MS ?? FILL_EVERY_MS);
-  const mock = await startMockTurbine({ port, fillEveryMs: fill }).catch(
-    (error: unknown) => {
-      const busy = (error as NodeJS.ErrnoException).code === "EADDRINUSE";
+  const settings = (() => {
+    try {
+      return mockSettings(process.env);
+    } catch {
       console.error(
-        busy
-          ? `Port ${port} is in use. Choose another: MOCK_TURBINE_PORT=4747 npm run mock`
-          : "The mock couldn't start."
+        "MOCK_TURBINE_PORT must be a port (1–65535) and MOCK_TURBINE_FILL_MS a number of milliseconds (100 or more)."
       );
       process.exit(1);
     }
-  );
+  })();
+  const { port } = settings;
+  const mock = await startMockTurbine(settings).catch((error: unknown) => {
+    const busy = (error as NodeJS.ErrnoException).code === "EADDRINUSE";
+    console.error(
+      busy
+        ? `Port ${port} is in use. Choose another: MOCK_TURBINE_PORT=4747 npm run mock`
+        : "The mock couldn't start."
+    );
+    process.exit(1);
+  });
   console.log(`A local mock of Turbine's playground is running on 127.0.0.1:${port}.
 
 In another terminal:
@@ -496,5 +528,5 @@ In another terminal:
 Orders fill in about 20 s; a negative spread waits, so you can cancel it. Ctrl-C stops the mock.`);
 }
 
-export { startMockTurbine };
+export { mockSettings, startMockTurbine };
 export type { MockTurbine };
